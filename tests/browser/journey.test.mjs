@@ -28,7 +28,8 @@ test('a founder chooses a checklist, tracks a follow-up and files a monthly conf
   const makerLink = page.getByRole('banner').getByRole('link', {name: 'For General Use', exact: true});
   assert.equal(await makerLink.getAttribute('href'), 'https://fgu.martinvolejnik.com');
   const makerLogo = makerLink.getByRole('img', {name: 'For General Use'});
-  assert.equal(await makerLogo.getAttribute('src'), '/assets/split-ticket.svg');
+  assert.equal(await makerLogo.getAttribute('src'), '/assets/split-ticket-paper.svg');
+  assert.equal(await makerLink.evaluate(element => getComputedStyle(element).padding), '0px');
   await page.getByRole('button', {name:'Preview records'}).click();
   const sample = page.getByRole('dialog', {name:'For General Use'});
   await sample.getByText(/software company behind Companykeeping/).waitFor();
