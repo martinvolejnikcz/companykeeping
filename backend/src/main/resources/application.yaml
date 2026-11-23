@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: companykeeping
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/companykeeping}
+    username: ${SPRING_DATASOURCE_USERNAME:companykeeping}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-trailing-tokens: true
+server:
+  address: ${HOST:127.0.0.1}
+  port: ${PORT:4317}
+  forward-headers-strategy: none
+  tomcat:
+    connection-timeout: 10s
+companykeeping:
+  public-origin: ${PUBLIC_ORIGIN:}

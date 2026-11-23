@@ -1,0 +1,62 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build the TypeScript frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Build and test the application JAR
+        run: mvn -B -ntp -f backend/pom.xml package
+      - name: Verify the HTTP journey against PostgreSQL
+        run: |
+          if ! test -x "$(pg_config --bindir)/initdb"; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql
+          fi
+          node --test tests/*.test.mjs
+      - name: Check the container
+        env:
+          POSTGRES_PASSWORD: isolated-ci-admin
+          COMPANYKEEPING_DB_PASSWORD: isolated-ci-application
+        run: |
+          docker compose config -q
+          docker compose up -d --build --wait --wait-timeout 90
+          curl --retry-all-errors --retry 10 --retry-delay 2 -fsS http://127.0.0.1:4317/healthz
+          curl -fsS http://127.0.0.1:4317/ | grep -q 'type="module"'
+      - name: Verify the founder journey in Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:browser
+      - name: Render the Quip chart
+        run: |
+          helm lint ./chart --set-string image.tag=check --set-string database.host=postgres.example.test
+          helm template companykeeping ./chart --namespace companykeeping \
+            --set-string image.tag=check --set-string database.host=postgres.example.test \
+            --set ingress.enabled=true --set-string ingress.host=companykeeping.example.test > /dev/null

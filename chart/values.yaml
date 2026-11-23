@@ -1,0 +1,24 @@
+image:
+  repository: companykeeping
+  # Supply the tag of an image imported into k3s, or an immutable OCI digest.
+  tag: ""
+  digest: ""
+  pullPolicy: Never
+
+database:
+  # Set to the DNS name of your provisioned PostgreSQL service.
+  host: ""
+  port: 5432
+  name: companykeeping
+  user: companykeeping
+  existingSecret: companykeeping-db
+  passwordKey: COMPANYKEEPING_DB_PASSWORD
+
+# An enabled ingress defaults the public origin to https://<ingress.host>.
+publicOrigin: ""
+ingress:
+  enabled: false
+  className: traefik
+  host: ""
+  # Optional when TLS terminates at the tunnel or proxy.
+  tlsSecretName: ""
