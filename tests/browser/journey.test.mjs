@@ -27,6 +27,8 @@ test('a founder chooses a checklist, tracks a follow-up and files a monthly conf
   await page.goto(app.origin);
   const makerLink = page.getByRole('banner').getByRole('link', {name: 'For General Use', exact: true});
   assert.equal(await makerLink.getAttribute('href'), 'https://fgu.martinvolejnik.com');
+  const makerLogo = makerLink.getByRole('img', {name: 'For General Use'});
+  assert.equal(await makerLogo.getAttribute('src'), '/assets/split-ticket.svg');
   await page.getByRole('button', {name:'Preview records'}).click();
   const sample = page.getByRole('dialog', {name:'For General Use'});
   await sample.getByText(/software company behind Companykeeping/).waitFor();
@@ -57,6 +59,7 @@ test('a founder chooses a checklist, tracks a follow-up and files a monthly conf
   assert.equal(await page.getByRole('link', {name:/Stillpoint/}).count(), 0);
 
   await page.setViewportSize({width: 390, height: 844});
+  assert.ok(await makerLogo.isVisible());
   await assertFitsPhone(page);
   await page.getByRole('link', {name:/Confirm delivery of the paper order/}).click();
   assert.equal(await page.getByLabel('Due date', {exact:true}).inputValue(), '');

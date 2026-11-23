@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type Example, type State } from './shared';
 import { ErrorNote, Icon, Progress, useSubmit } from './EntryUI';
 import { CompanyForm, ChecklistForm } from './Setup';
-import { MakerCredit } from './MakerCredit';
+import { CompanyLogoLink, MakerCredit } from './MakerCredit';
 
 type EntryProps = { state: State; refresh: () => Promise<void> };
 
@@ -91,7 +91,7 @@ export function Entry({state,refresh}: EntryProps) {
     </main> : !state.workspace ? <CompanyForm initialExample={chosen} refresh={refresh}/> : <ChecklistForm state={state} refresh={refresh}/>}
     <ErrorNote error={action.error}/>
     <footer className="entry-footer"><div className="entry-wrap"><span>About the company</span>
-      <a href="https://fgu.martinvolejnik.com" aria-label="About For General Use"><img src="/assets/split-ticket.svg" alt="For General Use"/></a>
+      <CompanyLogoLink/>
     </div></footer>
     {preview && <FilePreview example={preview} onClose={() => setPreview(null)} onChoose={() => {
       setChosen(preview); setPreview(null); location.hash='signup'; setLogin(false);

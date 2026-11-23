@@ -14,12 +14,15 @@ button:disabled{cursor:wait;opacity:.66}
 .entry-head>.entry-wrap{display:flex;justify-content:space-between;align-items:center;min-height:92px;gap:16px}
 .entry-wordmark{display:block;width:165px;height:auto}
 .brand-signature{display:flex;align-items:center;gap:16px;flex-shrink:0}
-.maker-credit{border-left:1px solid var(--rule);padding:5px 0 5px 16px;font-size:.88rem;color:var(--muted);white-space:nowrap}
-.maker-credit a{color:var(--blue);text-decoration:none;font-weight:600}
-.maker-credit a:hover{text-decoration:underline;text-underline-offset:3px}
+.maker-credit{display:inline-flex;align-items:center;gap:8px;border-left:1px solid var(--rule);padding-left:16px;font-size:.88rem;color:var(--muted);white-space:nowrap}
+.fgu-signature{display:inline-flex;align-items:center;background:#2045bc;padding:6px 9px;border-radius:2px;forced-color-adjust:none}
+.fgu-signature img{display:block;width:80px;height:auto}
+.fgu-signature:hover{background:#183a9e}
 @media(max-width:700px){
- .brand-signature{align-items:flex-start;flex-direction:column;gap:4px}
+ .brand-signature{align-items:flex-start;flex-direction:column;gap:5px;padding-block:8px}
  .maker-credit{border:0;padding:0;font-size:.77rem}
+ .maker-credit .fgu-signature{padding:4px 6px}
+ .maker-credit .fgu-signature img{width:68px}
 }
 .entry-switch,.entry-caption>div,.entry-footer>.entry-wrap,.entry-switch a,.entry-link,.entry-icon,.add-own{display:flex;align-items:center}
 .entry-switch{gap:18px;color:var(--muted);font-size:.9375rem}
@@ -64,7 +67,6 @@ button:disabled{cursor:wait;opacity:.66}
 .entry-caption button{background:#f5f7fc;border-color:#a1aec9;flex:none;color:#27447e}
 .entry-footer{border-top:1px solid var(--rule);margin-top:auto}
 .entry-footer .entry-wrap{min-height:74px;gap:12px;color:var(--muted);font-size:.87rem}
-.entry-footer a{display:flex;padding:6px 0}.entry-footer img{width:76px;height:auto}
 .setup-grid{display:grid;grid-template-columns:minmax(0,650px) minmax(230px,340px);gap:clamp(44px,8vw,140px);justify-content:space-between;padding-block:55px 72px;align-items:start}
 .setup-grid h1{font-size:clamp(2.9rem,4.6vw,4.9rem)}
 .setup-grid .entry-intro{margin:17px 0 26px;max-width:530px}
