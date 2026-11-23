@@ -29,10 +29,12 @@ export interface Item extends Required<ItemInput> {
 }
 
 export type GuideRoute = 'company' | 'individual' | 'undecided';
+export type SoftwareModel = 'product' | 'client' | 'exploring';
 export interface GuideAnswer {
   answer: string;
   completed: boolean;
   route?: GuideRoute | null;
+  softwareModel?: SoftwareModel | null;
 }
 
 export interface NotaryBrief {

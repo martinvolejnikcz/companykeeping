@@ -64,6 +64,8 @@
 .fg-route label { display: inline-flex; align-items: center; gap: 6px; min-height: 39px; border: 1px solid var(--wk-line); border-radius: 3px; padding: 6px 9px; font-size: .91rem; cursor: pointer; }
 .fg-route label:has(:checked) { border-color: var(--wk-blue); color: var(--wk-darkblue); background: #edf0f8; }
 .fg-route input { margin: 0; width: 15px; height: 15px; accent-color: var(--wk-blue); }
+.fg-software-choice { margin: 20px 0; padding: 0 0 15px; border-bottom: 1px solid var(--wk-line); }
+.fg-software-choice legend { font-size: 1.05rem; }
 .fg-save, .fg-filed-head, .fg-follow-up { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 12px; }
 .fg-save { margin-top: 13px; }
 .fg-save span { color: var(--wk-muted); font-size: .88rem; }

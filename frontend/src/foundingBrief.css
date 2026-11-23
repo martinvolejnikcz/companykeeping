@@ -12,6 +12,22 @@
 .nb-head h2:focus { outline: none; }
 .nb-status { color: var(--wk-muted); font-size: .82rem; }
 .nb-intro { margin: 8px 0 14px; color: var(--wk-muted); font-size: .96rem; line-height: 1.45; }
+.nb-notary { max-width: 70ch; }
+.nb-notary strong { color: var(--wk-ink); font-weight: 610; }
+.nb-notary a, .nb-official { text-underline-offset: 3px; }
+.nb-doc-chooser { border: 0; padding: 0; margin: 16px 0 12px; min-width: 0; }
+.nb-doc-chooser legend { margin-bottom: 6px; padding: 0; color: var(--wk-ink); font-size: .94rem; font-weight: 600; }
+.nb-doc-chooser > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.nb-doc-chooser label { display: flex; align-items: center; gap: 9px; padding: 9px 11px; min-width: 0; border: 1px solid #bdc1ba; border-radius: 3px; background: var(--wk-paper); cursor: pointer; }
+.nb-doc-chooser label:has(:checked) { border-color: var(--wk-blue); background: #edf0f8; }
+.nb-doc-chooser input { flex: none; margin: 0; width: 16px; height: 16px; accent-color: var(--wk-blue); }
+.nb-doc-chooser strong, .nb-doc-chooser small { display: block; }
+.nb-doc-chooser strong { color: var(--wk-ink); font-size: .97rem; font-weight: 620; }
+.nb-doc-chooser small { color: var(--wk-muted); font-size: .85rem; }
+.nb-official { display: inline-block; margin-top: 13px; font-size: .91rem; }
+.nb-choice-note { margin: 0 0 12px; padding: 9px 12px; border-left: 3px solid #b78b3d; background: #f3ebd3; font-size: .94rem; }
+.nb-compare { margin: 18px 0; padding: 10px 0; border-block: 1px solid var(--wk-line); }
+.nb-compare > summary { width: fit-content; color: var(--wk-darkblue); font-weight: 595; }
 .nb-edit { min-width: 0; margin: 0; padding: 0; border: 0; }
 .nb-section { display: grid; gap: 13px; padding-block: 17px 20px; border-top: 1px solid #cfcdbf; }
 .nb-section h3, .nb-preview h3 { margin: 0; font-size: 1.1rem; font-weight: 620; letter-spacing: -.02em; }
@@ -40,6 +56,7 @@
 @media (max-width: 640px) {
   .nb-file { margin-block: 17px; }
   .nb-pair { grid-template-columns: 1fr; gap: 8px; }
+  .nb-doc-chooser > div { grid-template-columns: 1fr; }
   .nb-person + .nb-person { border-top: 1px dashed var(--wk-line); padding-top: 9px; }
   .nb-tools { gap: 7px 9px; }
   .nb-tools .wk-btn { min-height: 40px; padding: 8px 11px; }

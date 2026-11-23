@@ -1,5 +1,5 @@
 import { getCountryCode } from './countries';
-import type { WorkspaceInfo } from './shared';
+import type { GuideAnswer, SoftwareModel, WorkspaceInfo } from './shared';
 
 type Route = 'company' | 'individual' | 'undecided';
 type Source = { label: string; url: string };
@@ -12,6 +12,8 @@ export type GuideStep = {
   points: string[];
   sources: Source[];
   routes?: { value: Route; label: string }[];
+  software?: boolean;
+  startingDraft?: string;
   followUp: { title: string; nextAction: string };
 };
 
@@ -51,13 +53,82 @@ function localSources(code?: string): Source[] {
 }
 
 function firstSaleExample(description: string) {
-  if (/\b(software|apps?|coding|saas|developer|programming)\b/i.test(description)) {
-    return 'A shop wants a booking tool. I’ll quote for one working booking flow. The owner will test it with a real appointment and approve it before I invoice.';
-  }
   if (/\b(shop|bakery|food|retail|jewell?ery|craft|goods|ceramics|furniture)\b/i.test(description)) {
     return 'A local shop wants a first batch. We’ll agree on quantity, delivery and how it will confirm receipt before I buy the materials.';
   }
   return 'My first client wants a small paid trial. We’ll agree what I’ll deliver, who will accept it and what triggers payment before I begin.';
+}
+
+export const softwareChoices: {value: SoftwareModel; label: string}[] = [
+  {value:'product', label:'Our own software product'},
+  {value:'client', label:'Custom software for clients'},
+  {value:'exploring', label:'Still exploring'},
+];
+
+const softwareBusiness = /\b(?:software\w*|saas|apps?|websites?|coding|programming|web dev(?:elopment|eloper)?|mobile development|digital products?|vyvoj aplikaci|vyvoj softwaru)\b/i;
+
+function usesSoftwareGuide(workspace: WorkspaceInfo, sale?: Partial<GuideAnswer>) {
+  return !!sale?.softwareModel || softwareBusiness.test(workspace.description.normalize('NFD').replace(/\p{Mark}/gu,''));
+}
+
+export function operatingSoftwareLaunch(workspace: WorkspaceInfo, answers: Record<string, Partial<GuideAnswer>>) {
+  const sale = answers['forming-first-sale'];
+  if (workspace.stage === 'operating' && usesSoftwareGuide(workspace, sale)) {
+    return softwareFirstSale(sale?.softwareModel, sale?.answer);
+  }
+}
+
+export function softwareFirstSale(model?: SoftwareModel | null, savedPlan?: string): GuideStep {
+  const base = {key:'forming-first-sale', software:true, sources:[]};
+  let step: GuideStep;
+  switch (model) {
+    case 'product':
+      step = {...base, title:'Test your product with one early user',
+        summary:'A software product can start with one person trying one useful thing. Your next move is to find that person and see how they handle the problem today.',
+        points:[
+          'Pick someone who recently had the problem. Ask them to show you the last time it happened and what they used to solve it.',
+          'Choose one task for them to try. A sketch or clickable screen is enough for a first conversation. If you have a build, give them a test account with sample data.',
+          'Watch where they get stuck. Agree what improvement would make it worth trying again. When the result is useful to them, ask whether they would pay to keep using it.'
+        ],
+        question:'Who will you invite, what will they try, and what will you learn?',
+        example:'I’m building an app for field technicians. On Friday I’ll ask one technician to turn a sample job into a visit report. I’ll watch what they still need their spreadsheet for.',
+        startingDraft:'Hi [name], I’m building [product] for people who [task]. Could you show me how you handled that last time? I have [a sketch / an early version] you could try with a sample. Would [time] work?',
+        followUp:{title:'Invite one early user to test the product',nextAction:'Invite one person who has the problem to try a single workflow. Agree on a time and record what you learn.'}};
+      break;
+    case 'client':
+      step = {...base, title:'Scope a paid software pilot',
+        summary:'For client work, the first sale can be one small piece of software or a paid discovery session. Make it clear what the buyer will get and how they will accept it.',
+        points:[
+          'Find the person who owns a painful workflow. Ask them to show the inputs, the result they need, and who approves spending.',
+          'Offer one small outcome. Write down what is included, what is outside the pilot, the price and the payment milestone.',
+          'Agree who tests the result, who owns the code and who handles hosting or support afterward. Put unresolved points in the proposal before committing to a delivery date.'
+        ],
+        question:'Which client will you approach, and what small result could they pay you to deliver?',
+        example:'A repair shop copies bookings into three calendars. I’ll propose a fixed-price pilot that transfers one confirmed booking, with the owner checking the result before accepting it.',
+        startingDraft:'Hi [name], you showed me [workflow]. I can deliver [one small result] for [price] by [date]. You would accept it by [test]. The pilot includes [scope]. Could we review it with [decision maker]?',
+        followUp:{title:'Send a pilot proposal to one client',nextAction:'Send the buyer a short pilot proposal with a deliverable, acceptance test, price and payment milestone.'}};
+      break;
+    case 'exploring':
+      step = {...base, title:'Choose a software problem to investigate',
+        summary:'You can start before you have code, a price or a customer. Find a repeated problem that someone will make time to show you.',
+        points:[
+          'Pick a group you can reach this week. Think of a specific person and a task they repeat.',
+          'Ask them about the last time they did it. Look at the workaround, the time it took and who felt the cost.',
+          'If several people have the same need, explore a product. If one buyer needs a particular integration, explore client work. Keep their words for your next conversation.'
+        ],
+        question:'Who could show you a real example of the problem this week?',
+        example:'I know two bike mechanics. I’ll ask one to walk me through ordering a missing part and listen for where the workshop loses time.',
+        startingDraft:'I’d like to speak with [person] about [repeated task]. I’ll ask them to show me the last time they did it and note [what I need to understand].',
+        followUp:{title:'Arrange one problem interview',nextAction:'Ask one person to show how they handled a recent example. Record the workaround and its cost.'}};
+      break;
+    default:
+      step = {...base, title:'Find your first software customer',
+        summary:'Are you making an app people will use, or will a client hire you to build something for them? Choose the situation closest to yours to see what to do this week.',
+        points:[], example:'', question:'What do you already know about the person you want to build for?',
+        followUp:{title:'Talk to a potential software user',nextAction:'Find one person you could build for and ask how they handle the problem today.'}};
+  }
+  if (savedPlan?.trim()) step.followUp.nextAction += '\n\n' + savedPlan.trim();
+  return step;
 }
 
 function registration(workspace: WorkspaceInfo, countryCode: string | undefined, route?: Route | null): GuideStep {
@@ -122,7 +193,7 @@ function registration(workspace: WorkspaceInfo, countryCode: string | undefined,
   };
 }
 
-function formation(workspace: WorkspaceInfo, code: string | undefined, route?: Route | null): GuideStep[] {
+function formation(workspace: WorkspaceInfo, code: string | undefined, route?: Route | null, sale?: Partial<GuideAnswer>): GuideStep[] {
   const czech = code === 'CZ';
   const company = czech ? 'A limited company (s.r.o.)' : 'A separate company';
   const individual = czech ? 'Self-employment (OSVČ)' : 'Trading as an individual';
@@ -145,7 +216,8 @@ function formation(workspace: WorkspaceInfo, code: string | undefined, route?: R
       followUp:{title:'Discuss the business structure',nextAction:'Take one expected customer agreement and your ownership plans to a local adviser. Record the implications of each route.'}
     },
     registration(workspace,code,route),
-    {
+    usesSoftwareGuide(workspace, sale)
+      ? softwareFirstSale(sale?.softwareModel, sale?.answer) : {
       key:'forming-first-sale',title:'Walk through your first sale',
       summary:'Imagine the first customer saying yes. Work backwards from the money reaching your account to the agreement, delivery and evidence that make payment possible.',
       points:[
@@ -199,9 +271,9 @@ const operating: GuideStep[] = [
   }
 ];
 
-export function getGuide(workspace: WorkspaceInfo, answers: Record<string, {route?: Route | null}> = {}): GuideStep[] {
+export function getGuide(workspace: WorkspaceInfo, answers: Record<string, Partial<GuideAnswer>> = {}): GuideStep[] {
   const countryCode = getCountryCode(workspace.country);
-  if (workspace.stage === 'forming') return formation(workspace,countryCode,answers['forming-model']?.route);
+  if (workspace.stage === 'forming') return formation(workspace,countryCode,answers['forming-model']?.route,answers['forming-first-sale']);
   if (countryCode !== 'CZ') return operating;
   return operating.map(step => {
     if (step.key === 'operating-handover') return {

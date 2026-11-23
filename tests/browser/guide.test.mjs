@@ -3,12 +3,12 @@ import test from 'node:test';
 import { chromium } from 'playwright';
 import { startApp } from '../server.mjs';
 
-async function createFounder(page, origin, stage, withChecklist = true) {
+async function createFounder(page, origin, stage, withChecklist = true, profile = {}) {
   const headers = {Origin: origin};
   // Recreate a workspace whose owner finished onboarding before the guide existed.
   const entries = [
-    ['/api/signup', {email: stage + '@guide.example', password: 'Local guide browser fixture.'}],
-    ['/api/workspace', {name: 'Maproom Software', country: 'Czechia', description: 'We build route planning software for cyclists.', stage}],
+    ['/api/signup', {email: profile.email || stage + '@guide.example', password: 'Local guide browser fixture.'}],
+    ['/api/workspace', {name: profile.name || 'Maproom Software', country: 'Czechia', description: profile.description || 'We build route planning software for cyclists.', stage}],
   ];
   if (withChecklist) entries.push(['/api/checklist', {items: [{title:'Review the first customer proposal'}]}]);
   for (const [path, data] of entries) {
@@ -89,8 +89,54 @@ test('an existing Czech software founder saves guide decisions, revisits the bus
     'https://portal.gov.cz/en/sluzby-vs/vznik-zivnostenskeho-opravneni-S757');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.getByRole('button', {name:'View steps'}).click();
-  await page.getByRole('navigation', {name:'Guide steps'}).getByRole('link', {name:/Walk through your first sale/}).click();
-  await chapter.getByText(/working booking flow/).waitFor();
+  await page.getByRole('navigation', {name:'Guide steps'}).locator('a[href="#guide/forming-first-sale"]').click();
+  await chapter.getByRole('heading', {name:'Find your first software customer'}).waitFor();
+
+  const models = chapter.getByRole('group', {name:'What are you building?'});
+  const product = models.getByRole('radio', {name:'Our own software product'});
+  const client = models.getByRole('radio', {name:'Custom software for clients'});
+  await models.getByRole('radio', {name:'Still exploring'}).check();
+  await chapter.getByRole('heading', {name:'Choose a software problem to investigate'}).waitFor();
+  await product.check();
+  await chapter.getByRole('heading', {name:'Test your product with one early user'}).waitFor();
+  const firstSaleAnswer = chapter.getByRole('textbox');
+  await chapter.getByRole('button', {name:'Use a starting draft'}).click();
+  assert.ok((await firstSaleAnswer.inputValue()).trim());
+  const productAnswer = 'Ask Maya at Hilltop Cycling to try planning her first two group rides with our app.';
+  await firstSaleAnswer.fill(productAnswer);
+  await chapter.getByRole('button', {name:'Save draft'}).click();
+  await chapter.getByRole('link', {name:'Create a follow-up'}).waitFor();
+  await page.reload();
+  assert.ok(await product.isChecked());
+  assert.equal(await firstSaleAnswer.inputValue(), productAnswer);
+  await chapter.getByRole('link', {name:'Create a follow-up'}).click();
+  assert.equal(await page.getByLabel('Item title', {exact:true}).inputValue(), 'Invite one early user to test the product');
+  assert.ok((await page.getByLabel('Next action', {exact:true}).inputValue()).includes(productAnswer));
+  await page.goBack();
+  await client.check();
+  await chapter.getByRole('heading', {name:'Scope a paid software pilot'}).waitFor();
+  const pilotAnswer = 'Offer Rowan a paid pilot to build one route export for their touring agency.';
+  await firstSaleAnswer.fill(pilotAnswer);
+  await chapter.getByRole('button', {name:'Finish step'}).click();
+  await chapter.getByText(pilotAnswer, {exact:true}).waitFor();
+  await page.reload();
+  await chapter.getByText(pilotAnswer, {exact:true}).waitFor();
+  await chapter.getByRole('heading', {name:'Scope a paid software pilot'}).waitFor();
+  await chapter.getByRole('link', {name:'Create a follow-up'}).click();
+  assert.equal(await page.getByLabel('Item title', {exact:true}).inputValue(), 'Send a pilot proposal to one client');
+  assert.ok((await page.getByLabel('Next action', {exact:true}).inputValue()).includes(pilotAnswer));
+  await page.getByRole('button', {name:'Add item', exact:true}).click();
+  await chapter.getByText(pilotAnswer, {exact:true}).waitFor();
+
+  const other = await browser.newPage();
+  await createFounder(other, app.origin, 'forming', true, {
+    email:'ceramics@guide.example', name:'Oakbend Ceramics', description:'I make wheel-thrown mugs and sell them at craft fairs.',
+  });
+  await other.goto(app.origin + '/#guide/forming-first-sale');
+  await other.getByRole('article').getByRole('heading', {name:'Walk through your first sale'}).waitFor();
+  assert.equal(await other.getByRole('group', {name:'What are you building?'}).count(), 0);
+  await other.getByRole('article').getByText(/A local shop wants a first batch/).waitFor();
+  await other.getByRole('article').getByRole('textbox').waitFor();
 
   const operating = await browser.newPage();
   await createFounder(operating, app.origin, 'operating', false);
@@ -100,8 +146,29 @@ test('an existing Czech software founder saves guide decisions, revisits the bus
   const operations = operating.getByRole('region', {name:'Operations guide'});
   await operations.getByText('0 of 3 steps complete').waitFor();
   await operations.getByRole('heading', {name:'Trace one payment from sale to bank'}).waitFor();
+  assert.equal(await operations.getByRole('link', {name:'Plan a software launch'}).getAttribute('href'), '#guide/forming-first-sale');
   await operations.getByRole('link', {name:'Start step'}).click();
   await operating.getByRole('article').getByRole('textbox').waitFor();
   assert.match(new URL(operating.url()).hash, /operating-money$/);
   assert.equal(await operating.getByRole('group', {name:'Which route are you exploring?'}).count(), 0);
+  await operating.getByRole('complementary').getByRole('link', {name:'Plan a software launch'}).click();
+  const launch = operating.getByRole('article');
+  const launchAnswer = 'Invite three dispatchers to try our new routing product.';
+  await launch.getByRole('radio', {name:'Our own software product'}).check();
+  await launch.getByRole('textbox').fill(launchAnswer);
+  await launch.getByRole('button', {name:'Finish step'}).click();
+  await launch.getByRole('link', {name:'Create a follow-up'}).click();
+  assert.equal(await operating.getByLabel('Item title', {exact:true}).inputValue(), 'Invite one early user to test the product');
+  assert.ok((await operating.getByLabel('Next action', {exact:true}).inputValue()).includes(launchAnswer));
+  await operating.getByRole('navigation', {name:'Workspace',exact:true}).getByRole('link', {name:'This week'}).click();
+  await operations.getByText('0 of 3 steps complete').waitFor();
+
+  const returning = await browser.newPage();
+  await returning.goto(app.origin + '/#guide/forming-first-sale');
+  await returning.getByLabel('Email address').fill('operating@guide.example');
+  await returning.getByLabel('Password', {exact:true}).fill('Local guide browser fixture.');
+  await returning.getByRole('button', {name:'Sign in', exact:true}).click();
+  await returning.getByRole('heading', {level:1, name:'Test your product with one early user'}).waitFor();
+  await returning.getByText(launchAnswer, {exact:true}).waitFor();
+  assert.equal(new URL(returning.url()).hash, '#guide/forming-first-sale');
 });

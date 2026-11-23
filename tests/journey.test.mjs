@@ -304,8 +304,11 @@ test('a private notary brief survives migration, reload and changes of business 
   const app = await startApp(t, { initialMigrationTarget: '2' });
   const owner = await founder(app, 'notary-owner@example.test', { ...details, stage: 'forming' });
   const decision = { answer: 'I plan to own the company with a partner.', completed: true, route: 'company' };
-  await owner.ok('PATCH', '/api/guide/forming-model', decision);
-  await app.restart();
+  // Seed exactly the saved V2 row shape before Flyway changes the schema.
+  await app.restart({ beforeMigrationSql: `
+    INSERT INTO guide_steps (workspace_id, step_key, answer, completed, route)
+      SELECT id, 'forming-model', 'I plan to own the company with a partner.', true, 'company' FROM workspaces;
+  ` });
   const migrated = await owner.state();
   assert.equal(migrated.notaryBrief, null);
   assert.deepEqual(migrated.guide['forming-model'], decision);
@@ -357,4 +360,49 @@ test('a private notary brief survives migration, reload and changes of business 
   const revised = { ...full, founders: [full.founders[0]], directors: [], registeredCapitalCzk: '', questions: '' };
   await owner.ok('PUT', path, revised);
   assert.deepEqual((await owner.state()).notaryBrief, revised);
+});
+
+test('a founder’s software business model stays on their own first-sale step', async t => {
+  const app = await startApp(t, { initialMigrationTarget: '3' });
+  const profile = { ...details, stage: 'forming', description: 'We build software for studios.' };
+  const owner = await founder(app, 'product-owner@example.test', profile);
+  const other = await founder(app, 'client-owner@example.test', profile);
+  await app.restart({ beforeMigrationSql: `
+    INSERT INTO guide_steps (workspace_id, step_key, answer, completed)
+      SELECT w.id, 'forming-first-sale', 'Start with a paid pilot.', true
+      FROM workspaces w JOIN accounts a ON a.id=w.owner_id WHERE a.email='product-owner@example.test';
+  ` });
+  assert.deepEqual((await owner.state()).guide['forming-first-sale'], { answer: 'Start with a paid pilot.', completed: true });
+  assert.deepEqual((await other.state()).guide, {});
+  const sale = '/api/guide/forming-first-sale';
+  const structure = '/api/guide/forming-model';
+  const legalChoice = { answer: 'Set up a company with another founder.', completed: true, route: 'company' };
+  await owner.ok('PATCH', structure, legalChoice);
+  const answer = 'Sell a hosted scheduling app to studios.';
+  const done = { answer, completed: true, softwareModel: 'product' };
+  assert.deepEqual(await owner.ok('PATCH', sale, { softwareModel: 'product' }), {
+    answer: 'Start with a paid pilot.', completed: true, softwareModel: 'product',
+  });
+  assert.deepEqual(await owner.ok('PATCH', sale, { answer, completed: true }), done);
+  const separate = { answer: 'Develop a custom booking tool.', completed: false, softwareModel: 'client' };
+  await other.ok('PATCH', sale, separate);
+
+  for (const value of ['unknown', false, {}]) {
+    assert.equal((await owner.request('PATCH', sale, { softwareModel: value, completed: false })).status, 400);
+  }
+  assert.equal((await owner.request('PATCH', structure, { softwareModel: 'product' })).status, 400);
+  assert.equal((await owner.request('PATCH', sale, { route: 'company' })).status, 400);
+  await app.restart();
+  const reloaded = (await owner.state()).guide;
+  assert.deepEqual(reloaded['forming-model'], legalChoice);
+  assert.deepEqual(reloaded['forming-first-sale'], done);
+  assert.deepEqual((await other.state()).guide['forming-first-sale'], separate);
+
+  assert.deepEqual(await owner.ok('PATCH', sale, { softwareModel: 'exploring' }), { ...done, softwareModel: 'exploring' });
+  assert.deepEqual(await owner.ok('PATCH', sale, { softwareModel: 'client', completed: false }), {
+    answer, completed: false, softwareModel: 'client',
+  });
+  assert.deepEqual(await owner.ok('PATCH', sale, { softwareModel: null }), { answer, completed: false });
+  assert.deepEqual((await owner.state()).guide['forming-model'], legalChoice);
+  assert.deepEqual((await other.state()).guide['forming-first-sale'], separate);
 });

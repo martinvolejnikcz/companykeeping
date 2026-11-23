@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { startPostgres } from './postgres.mjs';
@@ -21,7 +21,7 @@ export async function startApp(t, { initialMigrationTarget } = {}) {
     child = undefined;
   }
 
-  async function start(migrationTarget) {
+  async function start(migrationTarget, fixtureDirectory) {
     const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, 'bin/java') : 'java';
     child = spawn(java, ['-jar', 'backend/target/companykeeping.jar'], {
       cwd: project,
@@ -31,6 +31,7 @@ export async function startApp(t, { initialMigrationTarget } = {}) {
         PORT: '0',
         ...database.env,
         ...(migrationTarget ? { SPRING_FLYWAY_TARGET: migrationTarget } : {}),
+        ...(fixtureDirectory ? { SPRING_FLYWAY_LOCATIONS: 'classpath:db/migration,filesystem:' + fixtureDirectory } : {}),
         PUBLIC_ORIGIN: '',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -102,6 +103,13 @@ export async function startApp(t, { initialMigrationTarget } = {}) {
   return {
     get origin() { return origin; },
     client,
-    restart: async () => { await stop(); await start(); },
+    async restart({ beforeMigrationSql } = {}) {
+      await stop();
+      if (!beforeMigrationSql) return start();
+      const fixtures = path.join(directory, 'migration-fixture');
+      await mkdir(fixtures, { recursive: true });
+      await writeFile(path.join(fixtures, 'beforeMigrate.sql'), beforeMigrationSql);
+      return start(undefined, fixtures);
+    },
   };
 }

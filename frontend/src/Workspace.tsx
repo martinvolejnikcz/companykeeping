@@ -6,7 +6,7 @@ import type { Item, State, WorkspaceInfo } from './shared';
 import { MakerCredit } from './MakerCredit';
 import { FounderGuide, WeeklyGuide } from './FounderGuide';
 import { FoundingBrief } from './FoundingBrief';
-import { getGuide, type GuideStep } from './guideContent';
+import { getGuide, operatingSoftwareLaunch, type GuideStep } from './guideContent';
 import './workspace.css';
 
 const symbols = {
@@ -366,7 +366,10 @@ export function Workspace({state, refresh, notice}: WorkspaceProps) {
       : <DetailHead tab="records" title="No saved founding draft"/>; break;
     case 'guide': content = <FounderGuide workspace={workspace} guide={state.guide} brief={state.notaryBrief} selectedKey={route.step} refresh={refresh} notice={notice}/>; break;
     case 'new': {
-      const step = route.tab === 'guide' && route.step ? getGuide(workspace, state.guide).find(s => s.key === route.step) : undefined;
+      const launch = operatingSoftwareLaunch(workspace, state.guide);
+      const step = route.tab === 'guide' && route.step
+        ? getGuide(workspace, state.guide).find(s => s.key === route.step) ?? (launch?.key === route.step ? launch : undefined)
+        : undefined;
       content = <ItemEditor key={step?.key || 'new'} guideStep={step} items={items} {...saveProps}/>;
       break;
     }

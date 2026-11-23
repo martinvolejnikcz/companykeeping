@@ -3,8 +3,8 @@ import type { FormEvent, ReactNode } from 'react';
 import { getCountryCode } from './countries';
 import { CzechFormationWalkthrough } from './CzechFormationWalkthrough';
 import { FoundingBrief } from './FoundingBrief';
-import { getGuide, type GuideStep } from './guideContent';
-import { api, message, type GuideAnswer, type GuideRoute, type State, type WorkspaceInfo } from './shared';
+import { getGuide, operatingSoftwareLaunch, softwareChoices, softwareFirstSale, type GuideStep } from './guideContent';
+import { api, message, type GuideAnswer, type GuideRoute, type SoftwareModel, type State, type WorkspaceInfo } from './shared';
 import './guide.css';
 
 type GuideProps = {workspace: WorkspaceInfo; guide: State['guide']};
@@ -26,6 +26,11 @@ function FoundingDocumentsLink() {
   return <a className="fg-pack-shortcut" href="#guide/czech-sro">Prepare Czech founding documents</a>;
 }
 
+function SoftwareLaunchLink({current = false}: {current?: boolean}) {
+  return <a className="fg-pack-shortcut" aria-current={current ? 'page' : undefined}
+    href={chapterHref('forming-first-sale')}>Plan a software launch</a>;
+}
+
 function Progress({steps, guide}: {steps: GuideStep[]; guide: State['guide']}) {
   const complete = steps.filter(step => guide[step.key]?.completed).length;
   const label = complete + ' of ' + steps.length + ' steps complete';
@@ -40,7 +45,8 @@ export function WeeklyGuide({workspace, guide}: GuideProps) {
     <div className="fg-next-copy"><span className="fg-path">{guideName(workspace)} · {workspace.country}{next && ' · Step ' + (steps.indexOf(next) + 1)}</span>
       <h2>{next ? next.title : 'Your guide is complete'}</h2>
       <p>{next ? next.summary : 'Revisit your decisions as the business changes.'}</p>
-      {hasCzechFormation(workspace) && <FoundingDocumentsLink/>}</div>
+      {hasCzechFormation(workspace) && <FoundingDocumentsLink/>}
+      {operatingSoftwareLaunch(workspace, guide) && <SoftwareLaunchLink/>}</div>
     <div className="fg-next-action"><Progress steps={steps} guide={guide}/>
       <a className="wk-btn primary" href={next ? chapterHref(next.key) : '#guide'}>{next ? (guide[next.key] ? 'Continue step' : 'Start step') : 'Review decisions'}</a></div>
   </section>;
@@ -63,6 +69,7 @@ function ChapterIndex({workspace, steps, guide, current}: GuideProps & {steps: G
           <span>{step.title}{record && <small>{record.completed ? 'Completed' : 'Draft saved'}</small>}</span></a></li>;
       })}
     </ol></nav>
+    {operatingSoftwareLaunch(workspace, guide) && <SoftwareLaunchLink current={current === 'forming-first-sale'}/>}
   </aside>;
 }
 
@@ -87,19 +94,22 @@ function EarlierDecision({step, record}: {step: GuideStep; record: GuideAnswer})
   </details>;
 }
 
-function Chapter({step, index, total, record, next, previous, pack, offerPack, refresh, notice}: SaveActions & {
+function Chapter({step: savedStep, index, total, record, next, previous, pack, packPosition = 'replace', offerPack, supplemental, refresh, notice}: SaveActions & {
   step: GuideStep; index: number; total: number; record?: GuideAnswer; next?: GuideStep;
   previous?: {step: GuideStep; record: GuideAnswer};
-  pack?: ReactNode; offerPack: boolean;
+  pack?: ReactNode; packPosition?: 'replace' | 'before' | 'after'; offerPack: boolean; supplemental?: boolean;
 }) {
   const [answer, setAnswer] = useState(record?.answer || '');
   const [route, setRoute] = useState<GuideRoute | null>(record?.route || null);
+  const [softwareModel, setSoftwareModel] = useState<SoftwareModel | null>(record?.softwareModel ?? null);
+  const step = savedStep.software ? softwareFirstSale(softwareModel, record?.answer) : savedStep;
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [needsFocus, setNeedsFocus] = useState(false);
   const pending = useRef(false);
   const answerInput = useRef<HTMLTextAreaElement>(null);
+  const firstSoftwareChoice = useRef<HTMLInputElement>(null);
   const savedHeading = useRef<HTMLHeadingElement>(null);
   const answerId = useId();
   const reviewing = !!record?.completed && !editing;
@@ -115,6 +125,11 @@ function Chapter({step, index, total, record, next, previous, pack, offerPack, r
     if (pending.current) return;
     const clicked = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const completed = clicked?.value === 'finish';
+    if (completed && step.software && !softwareModel) {
+      setError('Choose the software path that fits you. You can also choose Still exploring.');
+      firstSoftwareChoice.current?.focus();
+      return;
+    }
     if (completed && !answer.trim()) {
       setError('Write your decision before finishing this step.');
       answerInput.current?.focus();
@@ -123,13 +138,14 @@ function Chapter({step, index, total, record, next, previous, pack, offerPack, r
     pending.current = true;
     setBusy(true);
     setError('');
-    const input = step.routes ? {answer, completed, route} : {answer, completed};
+    const input = {answer, completed, ...(step.routes && {route}), ...(step.software && {softwareModel})};
     void (async () => {
       try {
         const saved = await api<GuideAnswer>('/api/guide/' + encodeURIComponent(step.key), 'PATCH', input);
         await refresh();
         setAnswer(saved.answer);
         setRoute(saved.route || null);
+        setSoftwareModel(saved.softwareModel ?? null);
         setEditing(false);
         setNeedsFocus(true);
         notice(saved.completed ? 'Decision saved.' : 'Draft saved.');
@@ -145,25 +161,36 @@ function Chapter({step, index, total, record, next, previous, pack, offerPack, r
   function editDecision() {
     setAnswer(record?.answer || '');
     setRoute(record?.route || null);
+    setSoftwareModel(record?.softwareModel ?? null);
     setEditing(true);
     setNeedsFocus(true);
   }
-  const savedChoice = step.routes?.find(choice => choice.value === record?.route)?.label;
+  const savedChoice = step.software
+    ? softwareChoices.find(choice => choice.value === record?.softwareModel)?.label
+    : step.routes?.find(choice => choice.value === record?.route)?.label;
   return <article className="fg-chapter">
-    <header className="fg-chapter-head"><p>Step {index + 1} of {total}</p>
+    <header className="fg-chapter-head"><p>{supplemental ? 'Software launch' : 'Step ' + (index + 1) + ' of ' + total}</p>
       <h1 tabIndex={-1}>{step.title}</h1><div>{step.summary}</div>
       {offerPack && <FoundingDocumentsLink/>}</header>
+    {step.software && !reviewing && <fieldset className="fg-route fg-software-choice" disabled={busy}>
+      <legend>What are you building?</legend><div>{softwareChoices.map((choice, index) =>
+        <label key={choice.value}><input type="radio" name="software-model" value={choice.value}
+          ref={index === 0 ? firstSoftwareChoice : undefined} checked={softwareModel === choice.value}
+          onChange={() => { setSoftwareModel(choice.value); setError(''); }}/>{choice.label}</label>)}</div>
+    </fieldset>}
     {previous?.record.answer.trim() && <EarlierDecision step={previous.step} record={previous.record}/>}
-    {pack || <><ul className="fg-instructions">{step.points.map(point => <li key={point}>{point}</li>)}</ul>
+    {packPosition !== 'after' && pack}
+    {(!pack || packPosition !== 'replace') && <>{step.points.length > 0 && <ul className="fg-instructions">{step.points.map(point => <li key={point}>{point}</li>)}</ul>}
       {step.example && <aside className="fg-example"><strong>Example</strong><p>{step.example}</p></aside>}</>}
     <Sources sources={step.sources}/>
+    {packPosition === 'after' && pack}
     {reviewing ? <section className="fg-decision fg-filed">
       <div className="fg-filed-head"><h2 tabIndex={-1} ref={savedHeading}>Your decision</h2>
         <button className="fg-text-btn" type="button" onClick={editDecision}>Edit decision</button></div>
       <p className="fg-question">{step.question}</p>
       {savedChoice && <p className="fg-answer-route">{savedChoice}</p>}
       <p className="fg-saved-answer">{record.answer}</p>
-      <a className="wk-btn primary" href={next ? chapterHref(next.key) : '#guide'}>{next ? 'Continue to next step' : 'Review all decisions'}</a>
+      <a className="wk-btn primary" href={next ? chapterHref(next.key) : '#guide'}>{supplemental ? 'Return to company guide' : next ? 'Continue to next step' : 'Review all decisions'}</a>
     </section> : <form className="fg-decision" onSubmit={submit}>
       <h2>Your decision</h2>
       {step.routes && <fieldset className="fg-route" disabled={busy}><legend>Which route are you exploring?</legend><div>
@@ -172,12 +199,15 @@ function Chapter({step, index, total, record, next, previous, pack, offerPack, r
       </div></fieldset>}
       <label className="fg-question" htmlFor={answerId}>{step.question}</label>
       <textarea id={answerId} ref={answerInput} value={answer} rows={4} maxLength={3000} onChange={e => setAnswer(e.target.value)} disabled={busy}/>
+      {step.startingDraft && !answer.trim() && <button type="button" className="fg-text-btn" disabled={busy} onClick={() => {
+        setAnswer(step.startingDraft || ''); answerInput.current?.focus();
+      }}>Use a starting draft</button>}
       {error && <p className="wk-error" role="alert">{error}</p>}
       <div className="fg-save"><button className="wk-btn primary" type="submit" value="finish" disabled={busy}>{record?.completed ? 'Save changes' : 'Finish step'}</button>
         <button className="wk-btn secondary" type="submit" value="draft" disabled={busy}>{record?.completed ? 'Reopen as draft' : 'Save draft'}</button>
         {busy && <span role="status">Saving…</span>}</div>
     </form>}
-    {record && <FollowUp step={step}/>}
+    {record && (!step.software || (softwareModel === (record.softwareModel ?? null) && answer === record.answer)) && <FollowUp step={step}/>}
   </article>;
 }
 
@@ -191,7 +221,8 @@ function GuideReview({steps, guide}: {steps: GuideStep[]; guide: State['guide']}
 export function FounderGuide({workspace, guide, brief, selectedKey, refresh, notice}: GuideProps & SaveActions & {brief: State['notaryBrief']; selectedKey?: string}) {
   const steps = getGuide(workspace, guide);
   const unfinished = steps.find(step => !guide[step.key]?.completed);
-  const selected = steps.find(step => step.key === selectedKey);
+  const launch = operatingSoftwareLaunch(workspace, guide);
+  const selected = steps.find(step => step.key === selectedKey) || (selectedKey === launch?.key ? launch : undefined);
   const chapter = selected || unfinished;
   const czech = hasCzechFormation(workspace);
   const shortcut = czech && selectedKey === 'czech-sro';
@@ -202,7 +233,17 @@ export function FounderGuide({workspace, guide, brief, selectedKey, refresh, not
   const next = steps.find(step => step.key !== chapter?.key && !guide[step.key]?.completed);
   const index = chapter ? steps.indexOf(chapter) : -1;
   const previous = steps[index - 1];
-  const pack = <><FoundingBrief key={workspace.id} workspace={workspace} saved={brief} refresh={refresh} notice={notice}/><CzechFormationWalkthrough/></>;
+  const legalRoute = guide['forming-model']?.route;
+  const individual = legalRoute === 'individual';
+  const company = legalRoute === 'company';
+  const documents = <FoundingBrief key={workspace.id} workspace={workspace} saved={brief} refresh={refresh} notice={notice}/>;
+  const pack = <>{documents}<CzechFormationWalkthrough/></>;
+  let registrationPack;
+  if (czech && chapter?.key === 'forming-registration') {
+    if (company) registrationPack = pack;
+    else if (individual) registrationPack = <details className="nb-compare"><summary>Czech s.r.o. documents</summary>{pack}</details>;
+    else registrationPack = <>{documents}<details className="nb-compare"><summary>How to register a Czech s.r.o.</summary><CzechFormationWalkthrough/></details></>;
+  }
   if (shortcut) {
     return <div className="fg-spread"><ChapterIndex workspace={workspace} guide={guide} steps={steps}/>
       <article className="fg-chapter"><header className="fg-chapter-head"><p>Czech s.r.o.</p>
@@ -211,8 +252,8 @@ export function FounderGuide({workspace, guide, brief, selectedKey, refresh, not
         {pack}</article></div>;
   }
   return <div className="fg-spread"><ChapterIndex workspace={workspace} guide={guide} steps={steps} current={chapter?.key}/>
-    {chapter ? <Chapter key={chapter.key} step={chapter} index={index} total={steps.length}
-      pack={czech && chapter.key === 'forming-registration' && guide['forming-model']?.route === 'company' ? pack : undefined}
+    {chapter ? <Chapter key={chapter.key} step={chapter} index={index} total={steps.length} supplemental={index < 0}
+      pack={registrationPack} packPosition={company ? 'replace' : individual ? 'after' : 'before'}
       offerPack={czech && chapter.key === 'forming-model'}
       previous={previous && guide[previous.key] ? {step: previous, record: guide[previous.key]} : undefined}
       record={guide[chapter.key]} next={next} refresh={refresh} notice={notice}/> : <GuideReview steps={steps} guide={guide}/>}</div>;

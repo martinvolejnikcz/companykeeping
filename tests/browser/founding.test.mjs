@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import test from 'node:test';
+import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { startApp } from '../server.mjs';
 
@@ -32,6 +37,27 @@ async function previewAndDownloadDraft(page, brief) {
   const exported = await text(await download.createReadStream());
   assert.equal(exported, preview);
   return exported;
+}
+
+async function downloadWord(page, button, expectedName) {
+  const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+  assert.equal(download.suggestedFilename(), expectedName);
+  const directory = await mkdtemp(join(tmpdir(), 'companykeeping-word-'));
+  try {
+    const jar = process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', 'jar') : 'jar';
+    await promisify(execFile)(jar, ['xf', await download.path(), '[Content_Types].xml', 'word/document.xml'], {cwd:directory});
+    const types = await readFile(join(directory, '[Content_Types].xml'), 'utf8');
+    assert.match(types, /application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document\.main\+xml/);
+    const xml = await readFile(join(directory, 'word/document.xml'), 'utf8');
+    return await page.evaluate(source => {
+      const document = new DOMParser().parseFromString(source, 'application/xml');
+      if (document.documentElement.localName !== 'document') throw new Error('Invalid Word document XML.');
+      const word = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+      return [...document.getElementsByTagNameNS(word, 'p')].map(p => p.textContent).join('\n');
+    }, xml);
+  } finally {
+    await rm(directory, {recursive:true, force:true});
+  }
 }
 
 test('a Czech founder opens the s.r.o. walkthrough and prepares a private notary brief', {timeout:120_000}, async t => {
@@ -72,7 +98,25 @@ test('a Czech founder opens the s.r.o. walkthrough and prepares a private notary
   assert.match(await money.innerText(), /legal minimum before filing is CZK 6,000\.3/);
   await contribution.fill('50000');
 
+  await page.goto(app.origin + '/#guide/forming-registration');
   const brief = page.getByRole('region', {name:'Founding brief', exact:true});
+  await brief.getByText('Yes, you need a notary to form a Czech s.r.o.', {exact:true}).waitFor();
+  assert.equal(await brief.getByRole('link', {name:'Official Czech model (.docx)'}).getAttribute('href'),
+    'https://or.justice.cz/ias/ui/download/vzor_spolecenske_smlouvy.docx');
+  const forms = brief.getByRole('group', {name:'Choose a Czech founding document'});
+  const blankButton = brief.getByRole('button', {name:'Download blank Word template'});
+  await forms.getByRole('radio', {name:/Zakladatelská listina/}).check();
+  const blankSole = await downloadWord(page, blankButton, 'zakladatelska-listina-vzor.docx');
+  assert.match(blankSole, /zakladatelsk[áé] listin/iu);
+  assert.doesNotMatch(blankSole, /Mapa Studio/);
+  await forms.getByRole('radio', {name:/Společenská smlouva/}).check();
+  const blankMultiple = await downloadWord(page, blankButton, 'spolecenska-smlouva-vzor.docx');
+  assert.match(blankMultiple, /společensk[áé] smlouv/iu);
+  assert.doesNotMatch(blankMultiple, /Mapa Studio/);
+  await brief.getByRole('button', {name:'Prepare a founding brief'}).click();
+  await brief.getByLabel('Founder 2 name').waitFor();
+  await page.reload();
+  await forms.getByRole('radio', {name:/Zakladatelská listina/}).check();
   await brief.getByRole('button', {name:'Prepare a founding brief'}).click();
   assert.equal(await brief.getByLabel('Proposed company name').inputValue(), 'Mapa Studio');
   assert.equal(await brief.getByLabel('Business activity').inputValue(), 'We build mapping software for walking holidays.');
@@ -107,6 +151,13 @@ test('a Czech founder opens the s.r.o. walkthrough and prepares a private notary
   await page.reload();
   await brief.getByRole('button', {name:'Edit founding brief'}).waitFor();
   const multiple = await previewAndDownloadDraft(page, brief);
+  const personalised = await downloadWord(page, brief.getByRole('button', {name:'Download Word draft'}), 'spolecenska-smlouva-navrh.docx');
+  for (const term of ['Mapový ateliér s.r.o.', 'Ada Nováková', 'Jan Veselý', 'Vývoj mapového softwaru', 'Jak doložím souhlas s umístěním sídla?']) {
+    assert.ok(personalised.includes(term), 'Personalised Word document should include ' + term);
+  }
+  assert.match(personalised, /společensk[áé] smlouv/iu);
+  assert.match(personalised, /30[,\s]?000/);
+  assert.match(personalised, /20[,\s]?000/);
   assert.match(multiple, /společensk[áé] smlouv/iu);
   assert.match(multiple, /Ada Nováková/);
   assert.match(multiple, /Jan Veselý/);

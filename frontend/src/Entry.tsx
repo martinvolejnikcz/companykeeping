@@ -6,6 +6,10 @@ import { CompanyLogoLink, MakerCredit } from './MakerCredit';
 
 type EntryProps = { state: State; refresh: () => Promise<void> };
 
+function isGuideBookmark() {
+  return location.hash === '#guide' || location.hash.startsWith('#guide/') || location.hash === '#records/founding-brief';
+}
+
 function AccountForm({login, wantsExample, refresh}: {login: boolean; wantsExample: boolean; refresh: EntryProps['refresh']}) {
   const [show, setShow] = useState(false);
   const {error,busy,run} = useSubmit();
@@ -14,7 +18,7 @@ function AccountForm({login, wantsExample, refresh}: {login: boolean; wantsExamp
     const values = new FormData(event.currentTarget);
     void run(async () => {
       await api(login ? '/api/login' : '/api/signup', 'POST', {email: values.get('email'), password: values.get('password')});
-      history.replaceState(null,'',location.pathname);
+      if (!login || !isGuideBookmark()) history.replaceState(null,'',location.pathname);
       await refresh();
       window.scrollTo(0,0);
     });
@@ -53,12 +57,12 @@ function FilePreview({example,onClose,onChoose}: {example: Example; onClose: () 
 }
 
 export function Entry({state,refresh}: EntryProps) {
-  const [login,setLogin] = useState(location.hash === '#signin');
+  const [login,setLogin] = useState(() => location.hash === '#signin' || isGuideBookmark());
   const [preview,setPreview] = useState<Example | null>(null);
   const [chosen,setChosen] = useState<Example | null>(null);
   const action = useSubmit();
   useEffect(() => {
-    const hashChanged = () => setLogin(location.hash === '#signin');
+    const hashChanged = () => setLogin(location.hash === '#signin' || isGuideBookmark());
     window.addEventListener('hashchange',hashChanged);
     return () => window.removeEventListener('hashchange',hashChanged);
   }, []);

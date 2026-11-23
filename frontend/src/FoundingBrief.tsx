@@ -1,18 +1,32 @@
 import { useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, message, type NotaryBrief, type WorkspaceInfo } from './shared';
+import { downloadCzechDocument } from './downloadCzechDocument';
 import './foundingBrief.css';
 
 type Mode = 'closed' | 'edit' | 'preview';
 type TextKey = Exclude<keyof NotaryBrief, 'founders' | 'directors'>;
+type DocumentKind = 'single' | 'multiple';
+const documentOptions = [
+  {kind: 'single', title: 'Zakladatelská listina', founders: 'One founder', filename: 'zakladatelska-listina'},
+  {kind: 'multiple', title: 'Společenská smlouva', founders: 'Several founders', filename: 'spolecenska-smlouva'},
+] as const;
 const emptyFounder = () => ({name: '', contributionCzk: ''});
+
+function blankBrief(kind: DocumentKind): NotaryBrief {
+  return {
+    companyName: '', registeredOffice: '', activity: '',
+    founders: kind === 'single' ? [emptyFounder()] : [emptyFounder(), emptyFounder()],
+    directors: [''], signing: '', registeredCapitalCzk: '', contributionAdministrator: '',
+    paymentSchedule: '', otherFunding: '', notes: '', questions: '',
+  };
+}
 
 function initialBrief(workspace: WorkspaceInfo, saved: NotaryBrief | null): NotaryBrief {
   const values = saved || {
+    ...blankBrief('single'),
     companyName: workspace.name === 'Untitled company' ? '' : workspace.name,
-    activity: workspace.description, registeredOffice: '', founders: [], directors: [],
-    signing: '', registeredCapitalCzk: '', contributionAdministrator: '', paymentSchedule: '',
-    otherFunding: '', notes: '', questions: '',
+    activity: workspace.description,
   };
   return {
     ...values,
@@ -60,10 +74,9 @@ function amountOrPlaceholder(value: string, placeholder: string) {
 }
 
 function composeDraft(data: NotaryBrief) {
-  const founders = data.founders.length === 1 && !data.founders[0].name.trim() && !data.founders[0].contributionCzk.trim()
-    ? [] : data.founders;
+  const founders = data.founders;
   const single = founders.length === 1;
-  const formName = !founders.length ? 'zakladatelského právního jednání' : single ? 'zakladatelské listiny' : 'společenské smlouvy';
+  const formName = single ? 'zakladatelské listiny' : 'společenské smlouvy';
   const founderLines = founders.map((founder, i) => (i + 1) + '. ' + filled(founder.name, 'doplnit jméno nebo název zakladatele')
     + ' — navrhovaný vklad ' + amountOrPlaceholder(founder.contributionCzk, 'doplnit částku v Kč') + '.');
   const directors = data.directors.filter(name => name.trim());
@@ -73,8 +86,7 @@ function composeDraft(data: NotaryBrief) {
     'Pracovní návrh ' + formName + ' pro českou s.r.o.\nPodklad pro notáře k projednání a doplnění.',
     section('I. Zakladatelé',
       single ? 'Jediný zakladatel ' + filled(founders[0].name, 'doplnit jméno nebo název') + ' zamýšlí založit společnost s ručením omezeným.'
-      : founders.length > 1 ? 'Zakladatelé uvedení v článku III zamýšlejí společně založit společnost s ručením omezeným.'
-      : '[Doplnit zakladatele a potvrdit, zda půjde o zakladatelskou listinu jednoho zakladatele, nebo společenskou smlouvu více zakladatelů.]',
+      : 'Zakladatelé uvedení v článku III zamýšlejí společně založit společnost s ručením omezeným.',
       '[Doplnit identifikační údaje zakladatelů podle pokynů notáře.]'),
     section('II. Obchodní firma, sídlo a činnost',
       clause('Navrhovaná obchodní firma je ', data.companyName, 'doplnit úplný název včetně právní formy'),
@@ -82,7 +94,7 @@ function composeDraft(data: NotaryBrief) {
       clause('Zamýšlený předmět podnikání nebo činnosti je uveden takto: ', data.activity, 'doplnit popis činnosti')),
     section('III. Základní kapitál, vklady a podíly',
       'Navrhovaný základní kapitál společnosti činí ' + amountOrPlaceholder(data.registeredCapitalCzk, 'doplnit výši základního kapitálu v Kč') + '.',
-      founderLines.length ? founderLines.join('\n') : '[Doplnit výši vkladu každého zakladatele.]',
+      founderLines.join('\n'),
       intended !== null && listed !== null && intended !== listed ? '[Vyjasnit rozdíl: součet uvedených vkladů je ' + czk(listed) + ', zamýšlený základní kapitál činí ' + czk(intended) + '.]' : '',
       '[Upřesnit podíly jednotlivých společníků, jejich druhy a případná zvláštní práva.]'),
     section('IV. Správa a splnění vkladové povinnosti',
@@ -121,12 +133,16 @@ export function FoundingBrief({workspace, saved, refresh, notice, initialMode = 
   initialMode?: 'closed' | 'preview';
 }) {
   const [data, setData] = useState(() => initialBrief(workspace, saved));
+  const [kind, setKind] = useState<DocumentKind>(data.founders.length > 1 ? 'multiple' : 'single');
+  const [choiceNote, setChoiceNote] = useState('');
   const [mode, setMode] = useState<Mode>(initialMode);
   const [dirty, setDirty] = useState(false);
   const [hasSaved, setHasSaved] = useState(!!saved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copyFailure, setCopyFailure] = useState('');
+  const [exportError, setExportError] = useState('');
+  const radioGroup = useId();
   const saving = useRef(false);
   const preview = useRef<HTMLPreElement>(null);
   const header = useRef<HTMLHeadingElement>(null);
@@ -143,9 +159,26 @@ export function FoundingBrief({workspace, saved, refresh, notice, initialMode = 
 
   function changeMode(next: Mode) {
     setCopyFailure('');
+    setExportError('');
+    if (next === 'closed') setKind(data.founders.length > 1 ? 'multiple' : 'single');
     setMode(next);
     header.current?.focus({preventScroll: true});
     header.current?.scrollIntoView({block:'start'});
+  }
+
+  function openSelectedDocument() {
+    setChoiceNote('');
+    if (kind === 'multiple' && data.founders.length === 1) {
+      update('founders', [...data.founders, emptyFounder()]);
+    } else if (kind === 'single' && data.founders.length > 1) {
+      const entered = data.founders.filter(founder => founder.name.trim() || founder.contributionCzk.trim());
+      if (entered.length > 1) {
+        setChoiceNote('This draft already contains several founders. Their entries are still here. To prepare a single-founder deed, remove the founders you no longer intend to include.');
+      } else {
+        update('founders', entered.length ? entered : [emptyFounder()]);
+      }
+    }
+    changeMode('edit');
   }
 
   function validAmounts() {
@@ -189,6 +222,16 @@ export function FoundingBrief({workspace, saved, refresh, notice, initialMode = 
   }
 
   const draft = composeDraft(data);
+  async function downloadWord(blank: boolean) {
+    setExportError('');
+    const documentKind = blank ? kind : data.founders.length === 1 ? 'single' : 'multiple';
+    const option = documentOptions.find(item => item.kind === documentKind)!;
+    try {
+      await downloadCzechDocument(blank ? composeDraft(blankBrief(kind)) : draft, option.filename + (blank ? '-vzor.docx' : '-navrh.docx'));
+    } catch {
+      setExportError('The Word document could not be downloaded. Try again.');
+    }
+  }
   async function copy() {
     try {
       await navigator.clipboard.writeText(draft);
@@ -209,14 +252,31 @@ export function FoundingBrief({workspace, saved, refresh, notice, initialMode = 
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   const {listed, intended} = fundingTotals(data);
+  const archived = initialMode === 'preview';
   return <section className="nb-file" aria-label="Founding brief">
-    <header className="nb-head"><h2 tabIndex={-1} ref={header}>Founding brief</h2>
+    <header className="nb-head"><h2 tabIndex={-1} ref={header}>{archived ? 'Founding brief' : 'Czech s.r.o. founding documents'}</h2>
       {(hasSaved || dirty) && <span className="nb-status">{dirty ? 'Unsaved changes' : 'Saved in this workspace'}</span>}</header>
-    <p className="nb-intro">Set out the founders, capital and signing arrangements. Turn your answers into a Czech working draft for the notary to review.</p>
-    {mode === 'closed' ? <div className="nb-tools">
-      <button type="button" className="wk-btn primary" onClick={() => changeMode('edit')}>{hasSaved ? 'Edit founding brief' : 'Prepare a founding brief'}</button>
-      {hasSaved && <button type="button" className="wk-btn secondary" onClick={() => changeMode('preview')}>Preview Czech draft</button>}</div>
+    {!archived && mode === 'closed' ? <p className="nb-intro nb-notary"><strong>Yes, you need a notary to form a Czech s.r.o.</strong>{' '}
+      You can draft the terms yourself. The notary prepares the official deed for the founders to sign.{' '}
+      <a href="https://portal.gov.cz/en/informace/the-process-of-incorporation-and-setting-up-a-business-corporation-INF-221" target="_blank" rel="noopener noreferrer">Gov.cz guidance</a></p>
+      : <p className="nb-intro">Set out the founders, capital and signing arrangements in a Czech working draft for the notary to review.</p>}
+    {exportError && <p className="wk-error" role="alert">{exportError}</p>}
+    {mode === 'closed' ? <>
+      {!archived && <fieldset className="nb-doc-chooser"><legend>Choose a Czech founding document</legend><div>
+        {documentOptions.map(option => <label key={option.kind}>
+          <input type="radio" name={radioGroup} checked={kind === option.kind} onChange={() => setKind(option.kind)}/>
+          <span><strong lang="cs">{option.title}</strong><small>{option.founders}</small></span>
+        </label>)}
+      </div></fieldset>}
+      <div className="nb-tools">
+        <button type="button" className="wk-btn primary" onClick={archived ? () => changeMode('edit') : openSelectedDocument}>{hasSaved ? 'Edit founding brief' : 'Prepare a founding brief'}</button>
+        {!archived && <button type="button" className="wk-btn secondary" onClick={() => void downloadWord(true)}>Download blank Word template</button>}
+        {hasSaved && <button type="button" className="nb-link" onClick={() => changeMode('preview')}>Preview Czech draft</button>}
+      </div>
+      {!archived && <a className="nb-official" href="https://or.justice.cz/ias/ui/download/vzor_spolecenske_smlouvy.docx" target="_blank" rel="noopener noreferrer">Official Czech model (.docx)</a>}
+    </>
     : mode === 'edit' ? <form aria-label="Edit founding brief" onSubmit={save}><fieldset className="nb-edit" disabled={busy}>
+      {choiceNote && data.founders.length > 1 && <p className="nb-choice-note" role="status">{choiceNote}</p>}
       <section className="nb-section"><h3>Company details</h3><p>Use Czech wording where you have it. The draft includes your descriptions as you enter them and marks missing details in brackets.</p>
         {field('companyName','Proposed company name',200,{hint:'Include the intended legal form, for example Contour Studio s.r.o.'})}
         {field('registeredOffice','Registered office',500,{hint:'Give the proposed municipality and address (sídlo). A partial address is fine for a first draft.'})}
@@ -257,8 +317,9 @@ export function FoundingBrief({workspace, saved, refresh, notice, initialMode = 
       {error && <p role="alert" className="wk-error">{error}</p>}
       {copyFailure && <p role="status">{copyFailure}</p>}
       <div className="nb-tools">{(!hasSaved || dirty) && <button type="button" className="wk-btn primary" onClick={save} disabled={busy}>Save founding brief</button>}
+        <button type="button" className="wk-btn secondary" onClick={() => void downloadWord(false)}>Download Word draft</button>
         <button type="button" className="wk-btn secondary" onClick={copy}>Copy draft</button>
-        <button type="button" className="wk-btn secondary" onClick={download}>Download draft</button>
+        <button type="button" className="nb-link" onClick={download}>Download draft (.txt)</button>
         <button type="button" className="nb-link" onClick={() => changeMode('closed')}>Collapse brief</button></div>
       <pre tabIndex={0} ref={preview} lang="cs">{draft}</pre>
     </section>}
