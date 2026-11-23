@@ -5,6 +5,7 @@ import { api } from './shared';
 import type { Item, State, WorkspaceInfo } from './shared';
 import { MakerCredit } from './MakerCredit';
 import { FounderGuide, WeeklyGuide } from './FounderGuide';
+import { FoundingBrief } from './FoundingBrief';
 import { getGuide, type GuideStep } from './guideContent';
 import './workspace.css';
 
@@ -28,7 +29,7 @@ function Icon({name, size = 18}: { name: keyof typeof symbols; size?: number }) 
 }
 
 type Tab = 'week' | 'records' | 'guide';
-type View = Tab | 'item' | 'new' | 'company';
+type View = Tab | 'item' | 'new' | 'company' | 'brief';
 type Filter = 'all' | 'open' | 'completed';
 type Route = {view: View; tab: Tab; filter: Filter; id?: string; step?: string};
 type WorkspaceProps = {state: State; refresh: () => Promise<void>; notice: (message: string) => void};
@@ -42,6 +43,7 @@ function readRoute(hash: string): Route {
   const show = params.get('show');
   const filter = show === 'open' || show === 'completed' ? show : 'all';
   if (path === 'guide' || path.startsWith('guide/')) return {view: 'guide', tab: 'guide', filter, step: path.slice(6)};
+  if (path === 'records/founding-brief') return {view:'brief', tab:'records', filter};
   if (path === 'records' || path === 'company') return {view: path, tab, filter};
   if (path === 'items/new') return {view: 'new', tab, filter, step: params.get('step') || undefined};
   const match = /^items\/([a-zA-Z0-9_-]+)$/.exec(path);
@@ -190,7 +192,7 @@ function Weekly({items, workspace, guide}: {items: Item[]; workspace: WorkspaceI
       <div className="wk-side"><DuePanel items={open} today={today} end={end}/><ProfileCard workspace={workspace} tab="week"/></div></div></>;
 }
 
-function Records({items, workspace, filter}: {items: Item[]; workspace: WorkspaceInfo; filter: Filter}) {
+function Records({items, workspace, filter, hasBrief}: {items: Item[]; workspace: WorkspaceInfo; filter: Filter; hasBrief: boolean}) {
   const completed = items.filter(item => item.status === 'done').sort((a,b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
   const open = items.filter(item => item.status !== 'done');
   const filters = [{key:'all', label:'All items', count:items.length}, {key:'open', label:'Open', count:open.length}, {key:'completed', label:'Completed', count:completed.length}];
@@ -198,7 +200,9 @@ function Records({items, workspace, filter}: {items: Item[]; workspace: Workspac
   return <><PageHead title="Company records" meta={displayName(workspace)} addTo="records"/><div className="wk-sheet wk-week-grid">
     <section><nav className="wk-filters" aria-label="Filter records">{filters.map(({key,label,count}) => <a key={key} className="wk-filter" href={key === 'all' ? '#records' : '#records?show=' + key} aria-current={filter === key ? 'page' : undefined}>{label} <span>{count}</span></a>)}</nav>
     <div className="wk-rows">{list.length ? list.map(item => <ItemRow key={item.id} item={item} tab="records"/>) : <p className="wk-empty">{filter === 'completed' ? 'Completed items and their confirmations will appear here.' : 'No items filed here yet.'}</p>}</div></section>
-    <div className="wk-side"><ProfileCard workspace={workspace} tab="records"/></div></div></>;
+    <div className="wk-side"><ProfileCard workspace={workspace} tab="records"/>
+      {hasBrief && <a className="wk-document-link nb-record-link" href="#records/founding-brief"><Icon name="records"/>Saved founding draft</a>}
+    </div></div></>;
 }
 
 function HistoryPanel({item, items, tab}: {item?: Item; items: Item[]; tab: Tab}) {
@@ -356,8 +360,11 @@ export function Workspace({state, refresh, notice}: WorkspaceProps) {
   const saveProps = {tab:route.tab, refresh, notice};
   let content;
   switch (route.view) {
-    case 'records': content = <Records items={items} workspace={workspace} filter={route.filter}/>; break;
-    case 'guide': content = <FounderGuide workspace={workspace} guide={state.guide} selectedKey={route.step} refresh={refresh} notice={notice}/>; break;
+    case 'records': content = <Records items={items} workspace={workspace} filter={route.filter} hasBrief={!!state.notaryBrief}/>; break;
+    case 'brief': content = state.notaryBrief ? <><DetailHead tab="records" title="Saved founding draft"/>
+      <div className="wk-sheet nb-record"><FoundingBrief workspace={workspace} saved={state.notaryBrief} refresh={refresh} notice={notice} initialMode="preview"/></div></>
+      : <DetailHead tab="records" title="No saved founding draft"/>; break;
+    case 'guide': content = <FounderGuide workspace={workspace} guide={state.guide} brief={state.notaryBrief} selectedKey={route.step} refresh={refresh} notice={notice}/>; break;
     case 'new': {
       const step = route.tab === 'guide' && route.step ? getGuide(workspace, state.guide).find(s => s.key === route.step) : undefined;
       content = <ItemEditor key={step?.key || 'new'} guideStep={step} items={items} {...saveProps}/>;

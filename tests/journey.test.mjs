@@ -299,3 +299,62 @@ test('an existing company keeps its login and records when Flyway adds its found
   await owner.ok('PATCH', '/api/guide/operating-money', step);
   assert.deepEqual((await owner.state()).guide, { 'operating-money': step });
 });
+
+test('a private notary brief survives migration, reload and changes of business route', async t => {
+  const app = await startApp(t, { initialMigrationTarget: '2' });
+  const owner = await founder(app, 'notary-owner@example.test', { ...details, stage: 'forming' });
+  const decision = { answer: 'I plan to own the company with a partner.', completed: true, route: 'company' };
+  await owner.ok('PATCH', '/api/guide/forming-model', decision);
+  await app.restart();
+  const migrated = await owner.state();
+  assert.equal(migrated.notaryBrief, null);
+  assert.deepEqual(migrated.guide['forming-model'], decision);
+
+  const empty = {
+    companyName: '', registeredOffice: '', activity: '', founders: [], directors: [], signing: '',
+    registeredCapitalCzk: '', otherFunding: '', notes: '', questions: '',
+  };
+  const path = '/api/notary-brief';
+  const guest = app.client();
+  assert.equal((await guest.state()).notaryBrief, null);
+  denied(await guest.request('PUT', path, empty), [401]);
+  const bob = await founder(app, 'other-notary@example.test');
+  const blank = await bob.ok('PUT', path, empty);
+  assert.deepEqual(blank, { ...empty, contributionAdministrator: '', paymentSchedule: '' });
+
+  const full = {
+    companyName: 'Maproom Studio', registeredOffice: 'Brno, proposed office', activity: 'Publishing mapping software.',
+    founders: [{ name: 'Alex', contributionCzk: '14000.50' }, { name: 'Robin', contributionCzk: '6000' }],
+    directors: ['Robin', 'Alex'], signing: 'Ask whether each director may sign independently.',
+    registeredCapitalCzk: '20000.50', contributionAdministrator: 'Robin',
+    paymentSchedule: 'Ask the notary to confirm when the founders should pay.',
+    otherFunding: 'A separate founder loan for equipment.', notes: 'Compare office options.',
+    questions: 'Which office consent documents should we collect?',
+  };
+  const saved = await owner.ok('PUT', path, { ...full, registeredCapitalCzk: '20000,50' });
+  assert.deepEqual(saved, full);
+  assert.deepEqual((await owner.state()).notaryBrief, full);
+  assert.deepEqual((await bob.state()).notaryBrief, blank);
+  for (const invalid of [
+    { registeredCapitalCzk: '12.345' }, { registeredCapitalCzk: '-1' }, { registeredCapitalCzk: 100 },
+    { registeredCapitalCzk: '1000000000000000' }, { founders: [{ name: 'Alice', contributionCzk: 'unknown' }] },
+    { founders: [{ name: 'Missing amount field' }] }, { directors: [false] },
+    { founders: Array(51).fill({ name: '', contributionCzk: '' }) }, { notes: 'x'.repeat(3001) },
+  ]) {
+    assert.equal((await owner.request('PUT', path, { ...full, ...invalid })).status, 400);
+  }
+  assert.equal((await owner.request('PUT', path, { companyName: 'Partial document' })).status, 400);
+  assert.equal((await bob.request('PUT', path, { ...empty, workspaceId: migrated.workspace.id })).status, 400);
+  assert.deepEqual((await owner.state()).notaryBrief, full);
+
+  await owner.ok('PATCH', '/api/guide/forming-model', { route: 'individual' });
+  await owner.ok('PATCH', '/api/workspace', { stage: 'operating', country: 'Ireland' });
+  await app.restart();
+  const later = await owner.state();
+  assert.deepEqual(later.notaryBrief, full);
+  assert.deepEqual(later.items, migrated.items);
+  assert.deepEqual((await bob.state()).notaryBrief, blank);
+  const revised = { ...full, founders: [full.founders[0]], directors: [], registeredCapitalCzk: '', questions: '' };
+  await owner.ok('PUT', path, revised);
+  assert.deepEqual((await owner.state()).notaryBrief, revised);
+});

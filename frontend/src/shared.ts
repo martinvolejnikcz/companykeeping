@@ -35,12 +35,28 @@ export interface GuideAnswer {
   route?: GuideRoute | null;
 }
 
+export interface NotaryBrief {
+  companyName: string;
+  registeredOffice: string;
+  activity: string;
+  founders: {name: string; contributionCzk: string}[];
+  directors: string[];
+  signing: string;
+  registeredCapitalCzk: string;
+  contributionAdministrator: string;
+  paymentSchedule: string;
+  otherFunding: string;
+  notes: string;
+  questions: string;
+}
+
 export interface State {
   user: {email: string} | null;
   workspace: WorkspaceInfo | null;
   items: Item[];
   suggestions: ItemInput[];
   guide: Record<string, GuideAnswer>;
+  notaryBrief: NotaryBrief | null;
 }
 
 export type Profile = Pick<WorkspaceInfo, 'name' | 'country' | 'description' | 'stage'>;

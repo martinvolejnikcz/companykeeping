@@ -17,16 +17,18 @@ public class Workspaces {
     private final Items items;
     private final FounderGuide guide;
     private final CountryNames countries;
-    Workspaces(JdbcClient jdbc, Items items, FounderGuide guide, CountryNames countries) {
+    private final NotaryBriefs notary;
+    Workspaces(JdbcClient jdbc, Items items, FounderGuide guide, CountryNames countries, NotaryBriefs notary) {
         this.jdbc = jdbc;
         this.items = items;
         this.guide = guide;
         this.countries = countries;
+        this.notary = notary;
     }
 
     record Workspace(UUID id, Map<String,Object> profile, boolean demo, boolean setupComplete) {}
     record State(Map<String,Object> user, Map<String,Object> workspace, List<Map<String,Object>> items,
-                 List<Map<String,Object>> suggestions, Map<String,FounderGuide.Step> guide) {}
+                 List<Map<String,Object>> suggestions, Map<String,FounderGuide.Step> guide, NotaryBriefs.Draft notaryBrief) {}
 
     private Optional<Workspace> find(UUID owner, boolean lock) {
         return jdbc.sql("SELECT * FROM workspaces WHERE owner_id=?" + (lock ? " FOR UPDATE" : "")).param(owner)
@@ -43,16 +45,17 @@ public class Workspaces {
 
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public State state(Accounts.Account account) {
-        if (account == null) return new State(null,null,List.of(),List.of(),Map.of());
+        if (account == null) return new State(null,null,List.of(),List.of(),Map.of(),null);
         Map<String,Object> user = Map.of("email",account.email());
         Workspace workspace = find(account.id(),false).orElse(null);
-        if (workspace == null) return new State(user,null,List.of(),List.of(),Map.of());
+        if (workspace == null) return new State(user,null,List.of(),List.of(),Map.of(),null);
         var details = new HashMap<>(workspace.profile());
         details.put("id",workspace.id());
         details.put("demo",workspace.demo());
         details.put("setupComplete",workspace.setupComplete());
         return new State(user,details,items.list(workspace.id()),
-                workspace.setupComplete() ? List.of() : Suggestions.forProfile(details,workspace.demo()), guide.list(workspace.id()));
+                workspace.setupComplete() ? List.of() : Suggestions.forProfile(details,workspace.demo()),
+                guide.list(workspace.id()), notary.find(workspace.id()));
     }
 
     private static Map<String,Object> profile(Map<String,Object> values) {

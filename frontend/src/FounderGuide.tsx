@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { getCountryCode } from './countries';
+import { CzechFormationWalkthrough } from './CzechFormationWalkthrough';
+import { FoundingBrief } from './FoundingBrief';
 import { getGuide, type GuideStep } from './guideContent';
 import { api, message, type GuideAnswer, type GuideRoute, type State, type WorkspaceInfo } from './shared';
 import './guide.css';
@@ -15,6 +18,14 @@ function guideName(workspace: WorkspaceInfo) {
   return workspace.stage === 'forming' ? 'Formation guide' : 'Operations guide';
 }
 
+function hasCzechFormation(workspace: WorkspaceInfo) {
+  return workspace.stage === 'forming' && getCountryCode(workspace.country) === 'CZ';
+}
+
+function FoundingDocumentsLink() {
+  return <a className="fg-pack-shortcut" href="#guide/czech-sro">Prepare Czech founding documents</a>;
+}
+
 function Progress({steps, guide}: {steps: GuideStep[]; guide: State['guide']}) {
   const complete = steps.filter(step => guide[step.key]?.completed).length;
   const label = complete + ' of ' + steps.length + ' steps complete';
@@ -28,7 +39,8 @@ export function WeeklyGuide({workspace, guide}: GuideProps) {
   return <section className="fg-next" aria-label={guideName(workspace)}>
     <div className="fg-next-copy"><span className="fg-path">{guideName(workspace)} · {workspace.country}{next && ' · Step ' + (steps.indexOf(next) + 1)}</span>
       <h2>{next ? next.title : 'Your guide is complete'}</h2>
-      <p>{next ? next.summary : 'Revisit your decisions as the business changes.'}</p></div>
+      <p>{next ? next.summary : 'Revisit your decisions as the business changes.'}</p>
+      {hasCzechFormation(workspace) && <FoundingDocumentsLink/>}</div>
     <div className="fg-next-action"><Progress steps={steps} guide={guide}/>
       <a className="wk-btn primary" href={next ? chapterHref(next.key) : '#guide'}>{next ? (guide[next.key] ? 'Continue step' : 'Start step') : 'Review decisions'}</a></div>
   </section>;
@@ -75,9 +87,10 @@ function EarlierDecision({step, record}: {step: GuideStep; record: GuideAnswer})
   </details>;
 }
 
-function Chapter({step, index, total, record, next, previous, refresh, notice}: SaveActions & {
+function Chapter({step, index, total, record, next, previous, pack, offerPack, refresh, notice}: SaveActions & {
   step: GuideStep; index: number; total: number; record?: GuideAnswer; next?: GuideStep;
   previous?: {step: GuideStep; record: GuideAnswer};
+  pack?: ReactNode; offerPack: boolean;
 }) {
   const [answer, setAnswer] = useState(record?.answer || '');
   const [route, setRoute] = useState<GuideRoute | null>(record?.route || null);
@@ -138,10 +151,11 @@ function Chapter({step, index, total, record, next, previous, refresh, notice}: 
   const savedChoice = step.routes?.find(choice => choice.value === record?.route)?.label;
   return <article className="fg-chapter">
     <header className="fg-chapter-head"><p>Step {index + 1} of {total}</p>
-      <h1 tabIndex={-1}>{step.title}</h1><div>{step.summary}</div></header>
+      <h1 tabIndex={-1}>{step.title}</h1><div>{step.summary}</div>
+      {offerPack && <FoundingDocumentsLink/>}</header>
     {previous?.record.answer.trim() && <EarlierDecision step={previous.step} record={previous.record}/>}
-    <ul className="fg-instructions">{step.points.map(point => <li key={point}>{point}</li>)}</ul>
-    {step.example && <aside className="fg-example"><strong>Example</strong><p>{step.example}</p></aside>}
+    {pack || <><ul className="fg-instructions">{step.points.map(point => <li key={point}>{point}</li>)}</ul>
+      {step.example && <aside className="fg-example"><strong>Example</strong><p>{step.example}</p></aside>}</>}
     <Sources sources={step.sources}/>
     {reviewing ? <section className="fg-decision fg-filed">
       <div className="fg-filed-head"><h2 tabIndex={-1} ref={savedHeading}>Your decision</h2>
@@ -174,20 +188,32 @@ function GuideReview({steps, guide}: {steps: GuideStep[]; guide: State['guide']}
       <p>{guide[step.key]?.answer}</p></li>)}</ol></article>;
 }
 
-export function FounderGuide({workspace, guide, selectedKey, refresh, notice}: GuideProps & SaveActions & {selectedKey?: string}) {
+export function FounderGuide({workspace, guide, brief, selectedKey, refresh, notice}: GuideProps & SaveActions & {brief: State['notaryBrief']; selectedKey?: string}) {
   const steps = getGuide(workspace, guide);
   const unfinished = steps.find(step => !guide[step.key]?.completed);
   const selected = steps.find(step => step.key === selectedKey);
   const chapter = selected || unfinished;
+  const czech = hasCzechFormation(workspace);
+  const shortcut = czech && selectedKey === 'czech-sro';
   // Give the active chapter its own reloadable address before it can be completed.
   useEffect(() => {
-    if (!selected && (unfinished || selectedKey)) location.replace(unfinished ? chapterHref(unfinished.key) : '#guide');
-  }, [selected?.key, unfinished?.key, selectedKey]);
+    if (!shortcut && !selected && (unfinished || selectedKey)) location.replace(unfinished ? chapterHref(unfinished.key) : '#guide');
+  }, [selected?.key, unfinished?.key, selectedKey, shortcut]);
   const next = steps.find(step => step.key !== chapter?.key && !guide[step.key]?.completed);
   const index = chapter ? steps.indexOf(chapter) : -1;
   const previous = steps[index - 1];
+  const pack = <><FoundingBrief key={workspace.id} workspace={workspace} saved={brief} refresh={refresh} notice={notice}/><CzechFormationWalkthrough/></>;
+  if (shortcut) {
+    return <div className="fg-spread"><ChapterIndex workspace={workspace} guide={guide} steps={steps}/>
+      <article className="fg-chapter"><header className="fg-chapter-head"><p>Czech s.r.o.</p>
+        <h1 tabIndex={-1}>Prepare Czech founding documents</h1>
+        <div>Prepare a draft for your notary and work through the practical steps of setting up a Czech limited company.</div></header>
+        {pack}</article></div>;
+  }
   return <div className="fg-spread"><ChapterIndex workspace={workspace} guide={guide} steps={steps} current={chapter?.key}/>
     {chapter ? <Chapter key={chapter.key} step={chapter} index={index} total={steps.length}
+      pack={czech && chapter.key === 'forming-registration' && guide['forming-model']?.route === 'company' ? pack : undefined}
+      offerPack={czech && chapter.key === 'forming-model'}
       previous={previous && guide[previous.key] ? {step: previous, record: guide[previous.key]} : undefined}
       record={guide[chapter.key]} next={next} refresh={refresh} notice={notice}/> : <GuideReview steps={steps} guide={guide}/>}</div>;
 }

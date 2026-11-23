@@ -21,12 +21,14 @@ class ApiController {
     private final Workspaces workspaces;
     private final Items items;
     private final JdbcClient jdbc;
+    private final NotaryBriefs notary;
 
-    ApiController(Accounts accounts, Workspaces workspaces, Items items, JdbcClient jdbc) {
+    ApiController(Accounts accounts, Workspaces workspaces, Items items, JdbcClient jdbc, NotaryBriefs notary) {
         this.accounts = accounts;
         this.workspaces = workspaces;
         this.items = items;
         this.jdbc = jdbc;
+        this.notary = notary;
     }
 
     @GetMapping("/healthz")
@@ -68,6 +70,11 @@ class ApiController {
     Object editWorkspace(@RequestAttribute Accounts.Account account, @RequestBody Map<String,Object> body) {
         workspaces.edit(account.id(),body);
         return Map.of("ok",true);
+    }
+
+    @PutMapping("/api/notary-brief")
+    NotaryBriefs.Draft replaceNotaryBrief(@RequestAttribute Accounts.Account account, @RequestBody Map<String,Object> body) {
+        return notary.replace(workspaces.id(account), body);
     }
 
     record Checklist(List<Map<String,Object>> items) {}

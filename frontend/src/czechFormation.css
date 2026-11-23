@@ -1,0 +1,22 @@
+.formation-walkthrough { margin-block: 28px; }
+.formation-walkthrough h2 { font-size: clamp(1.35rem, 2.5vw, 1.75rem); letter-spacing: -.045em; line-height: 1.12; margin: 0 0 14px; }
+.formation-walkthrough h3 { font-size: 1.12rem; line-height: 1.26; letter-spacing: -.025em; margin: 0; }
+.formation-sequence { padding-inline-start: 1.7rem; margin: 0; }
+.formation-sequence > li { padding: 14px 0 18px 4px; border-top: 1px solid var(--wk-line); }
+.formation-sequence > li::marker { font-weight: 650; color: var(--wk-blue); }
+.formation-walkthrough p { margin: 7px 0; line-height: 1.48; }
+.formation-walkthrough a { text-underline-offset: 3px; font-size: .92rem; }
+.formation-sources { display: flex; align-items: baseline; gap: 5px 18px; flex-wrap: wrap; }
+.formation-walkthrough details { margin: 10px 0; }
+.formation-walkthrough summary { cursor: pointer; color: var(--wk-darkblue); font-size: .95rem; font-weight: 550; }
+.formation-money { margin: 16px 0 0; padding: clamp(14px, 2vw, 24px); background: #f6efd9; border-top: 3px solid var(--wk-manila); }
+.formation-money > h3 { font-size: 1.28rem; }
+.formation-money label { display: grid; justify-items: start; gap: 4px; margin: 15px 0 0; font-weight: 610; }
+.formation-money input { color: var(--wk-ink); background: var(--wk-paper); border: 1px solid #92958b; border-radius: 3px; padding: 8px 10px; width: min(100%, 14rem); }
+.formation-money .formation-hint { font-size: .87rem; color: var(--wk-muted); margin-top: 4px; }
+.formation-calculation { border-left: 3px solid var(--wk-blue); margin: 13px 0; padding-left: 12px; }
+.formation-money .formation-sources { margin-top: 10px; }
+@media(max-width: 640px) {
+  .formation-sequence { padding-inline-start: 1.35rem; }
+  .formation-money { margin-left: -1.6rem; padding-inline: 15px; }
+}
