@@ -25,6 +25,12 @@ test('a founder chooses a checklist, tracks a follow-up and files a monthly conf
   page.on('pageerror', error => pageErrors.push(error.message));
 
   await page.goto(app.origin);
+  const makerLink = page.getByRole('banner').getByRole('link', {name: 'For General Use', exact: true});
+  assert.equal(await makerLink.getAttribute('href'), 'https://fgu.martinvolejnik.com');
+  await page.getByRole('button', {name:'Preview records'}).click();
+  const sample = page.getByRole('dialog', {name:'For General Use'});
+  await sample.getByText(/software company behind Companykeeping/).waitFor();
+  await sample.getByRole('button', {name:'Close preview'}).click();
   await page.getByLabel('Email address').fill('founder@bookwork.example');
   await page.getByLabel('Password', {exact: true}).fill('A private passphrase for browser tests.');
   await page.getByRole('button', {name:'Create account'}).click();

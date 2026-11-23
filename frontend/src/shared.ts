@@ -4,6 +4,7 @@ export interface WorkspaceInfo {
   country: string;
   description: string;
   stage: 'forming' | 'operating';
+  demo: boolean;
   setupComplete: boolean;
 }
 

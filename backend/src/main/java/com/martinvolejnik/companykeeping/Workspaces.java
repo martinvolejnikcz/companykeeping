@@ -44,6 +44,7 @@ public class Workspaces {
         if (workspace == null) return new State(user,null,List.of(),List.of());
         var details = new HashMap<>(workspace.profile());
         details.put("id",workspace.id());
+        details.put("demo",workspace.demo());
         details.put("setupComplete",workspace.setupComplete());
         return new State(user,details,items.list(workspace.id()), workspace.setupComplete() ? List.of() : Suggestions.forProfile(details,workspace.demo()));
     }

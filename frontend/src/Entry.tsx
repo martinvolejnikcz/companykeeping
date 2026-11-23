@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type Example, type State } from './shared';
 import { ErrorNote, Icon, Progress, useSubmit } from './EntryUI';
 import { CompanyForm, ChecklistForm } from './Setup';
+import { MakerCredit } from './MakerCredit';
 
 type EntryProps = { state: State; refresh: () => Promise<void> };
 
@@ -21,7 +22,7 @@ function AccountForm({login, wantsExample, refresh}: {login: boolean; wantsExamp
   return <div className="entry-account">
     {!login && <Progress index={0} />}
     <h1>{login ? <>Open your <br/>workspace.</> : <>Open your <br/>company file.</>}</h1>
-    <p className="entry-intro">{login ? 'Sign in to see your next actions and company records.' : wantsExample ? 'Create an account to open a private copy of the For General Use example.' : 'A private workspace for the next actions, follow-ups, and records that keep your company running.'}</p>
+    <p className="entry-intro">{login ? 'Sign in to see your next actions and company records.' : wantsExample ? 'Create an account to try our sample records in a private workspace of your own.' : 'A private workspace for the next actions, follow-ups, and records that keep your company running.'}</p>
     <form onSubmit={submit} className="entry-form">
       <label>Email address<input name="email" type="email" autoComplete="email" maxLength={254} required placeholder="you@company.com"/></label>
       <label htmlFor="account-password">Password</label>
@@ -39,7 +40,7 @@ function FilePreview({example,onClose,onChoose}: {example: Example; onClose: () 
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); }, []);
   return <dialog ref={ref} className="example-dialog" onCancel={onClose} aria-labelledby="example-title">
-    <div className="example-heading"><span><Icon name="folder"/>Studio example</span>
+    <div className="example-heading"><span><Icon name="folder"/>Sample company records</span>
       <button className="entry-icon" aria-label="Close preview" onClick={onClose}><Icon name="close"/></button></div>
     <h2 id="example-title">{example.workspace.name}</h2>
     <p>{example.workspace.description}</p>
@@ -47,7 +48,7 @@ function FilePreview({example,onClose,onChoose}: {example: Example; onClose: () 
       <details key={item.title}><summary><span>{item.title}</span><small>{item.status === 'waiting' ? 'Waiting' : item.recurrence === 'monthly' ? 'Monthly' : 'Ready'}</small></summary>
         <p>{item.nextAction}</p>{item.waitingFor && <p>Waiting for {item.waitingFor.toLowerCase()}.</p>}
       </details>)}</div>
-    <button className="entry-primary" onClick={onChoose}>Start with this example</button>
+    <button className="entry-primary" onClick={onChoose}>Use these sample records</button>
   </dialog>;
 }
 
@@ -74,23 +75,23 @@ export function Entry({state,refresh}: EntryProps) {
   }
   return <div className="entry-page">
     <header className="entry-head"><div className="entry-wrap">
-      <img src="/assets/index-tab.svg" className="entry-wordmark" alt="Companykeeping" />
+      <div className="brand-signature"><img src="/assets/index-tab.svg" className="entry-wordmark" alt="Companykeeping" /><MakerCredit/></div>
       {account ? <div className="entry-switch"><span>{login ? 'New to Companykeeping?' : 'Already have an account?'}</span>
         <a href={login ? '#signup' : '#signin'}>{!login && <Icon name="user" size={15}/>} {login ? 'Create account' : 'Sign in'}</a></div>
       : <button type="button" className="entry-link" disabled={action.busy} onClick={() => void action.run(logout)}>Sign out</button>}
     </div></header>
     {account ? <main className="entry-wrap entry-landing">
       <AccountForm key={String(login)} login={login} wantsExample={!!chosen} refresh={refresh}/>
-      <aside className="entry-studio" aria-label="Studio example file">
+      <aside className="entry-studio" aria-label="Sample records from For General Use">
         <div className="entry-art"><img src="/assets/company-file.jpg" alt="Manila company records folder with cobalt index dividers and clipped paperwork" fetchPriority="high"/></div>
-        <div className="entry-caption"><div><Icon name="folder" size={23}/><div><small>Example workspace</small><strong>For General Use</strong></div></div>
-          <button type="button" disabled={action.busy} onClick={() => void action.run(async () => setPreview(await api<Example>('/api/example')))}>Preview file</button>
+        <div className="entry-caption"><div><Icon name="folder" size={23}/><div><small>From For General Use</small><strong>Our sample company file</strong></div></div>
+          <button type="button" disabled={action.busy} onClick={() => void action.run(async () => setPreview(await api<Example>('/api/example')))}>Preview records</button>
         </div>
       </aside>
     </main> : !state.workspace ? <CompanyForm initialExample={chosen} refresh={refresh}/> : <ChecklistForm state={state} refresh={refresh}/>}
     <ErrorNote error={action.error}/>
-    <footer className="entry-footer"><div className="entry-wrap"><span>A product by</span>
-      <a href="https://fgu.martinvolejnik.com" aria-label="For General Use"><img src="/assets/split-ticket.svg" alt="For General Use"/></a>
+    <footer className="entry-footer"><div className="entry-wrap"><span>About the company</span>
+      <a href="https://fgu.martinvolejnik.com" aria-label="About For General Use"><img src="/assets/split-ticket.svg" alt="For General Use"/></a>
     </div></footer>
     {preview && <FilePreview example={preview} onClose={() => setPreview(null)} onChoose={() => {
       setChosen(preview); setPreview(null); location.hash='signup'; setLogin(false);

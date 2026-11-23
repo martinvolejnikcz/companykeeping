@@ -185,17 +185,22 @@ test('each completed monthly record keeps its own dated evidence and creates one
 
 test('demo suggestions require an explicit choice', async t => {
   const app = await startApp(t);
-  const plain = await founder(app, 'business@example.test');
+  const plain = await founder(app, 'business@example.test', { ...details, name: 'For General Use' });
   const plainState = await plain.state();
-  assert.equal(plainState.workspace.name, details.name);
+  assert.equal(plainState.workspace.name, 'For General Use');
+  assert.equal(plainState.workspace.demo, false);
   assert.doesNotMatch(JSON.stringify(plainState.suggestions), /Stillpoint|For General Use/i);
   const demo = await founder(app, 'demo@example.test', {
     ...details, name: 'For General Use', description: 'A studio making products including Stillpoint.', demo: true,
   });
-  const suggestions = (await demo.state()).suggestions;
+  const demoState = await demo.state();
+  assert.equal(demoState.workspace.demo, true);
+  const suggestions = demoState.suggestions;
   assert.match(JSON.stringify(suggestions), /Stillpoint/i);
   assert.ok(suggestions.some(x => x.status === 'waiting' && x.waitingFor));
   await accept(demo, suggestions);
+  await demo.ok('PATCH', '/api/workspace', { name: 'My sample studio' });
+  assert.equal((await demo.state()).workspace.demo, true);
   assert.equal((await plain.state()).items.length, 0);
   await demo.ok('POST', '/api/items', { title: 'Private studio decision' });
   const visitor = app.client();

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { api } from './shared';
 import type { Item, State, WorkspaceInfo } from './shared';
+import { MakerCredit } from './MakerCredit';
 import './workspace.css';
 
 const symbols = {
@@ -103,7 +104,10 @@ function Masthead({workspace, email, tab, refresh, notice}: SaveProps & {workspa
     }
   }
   return <header className="wk-masthead"><div className="wk-masthead-inner">
-    <a className="wk-brand" href="#week" aria-label="Companykeeping home"><img src="/assets/index-tab.svg" alt="Companykeeping"/></a>
+    <div className="brand-signature">
+      <a className="wk-brand" href="#week" aria-label="Companykeeping home"><img src="/assets/index-tab.svg" alt="Companykeeping"/></a>
+      <MakerCredit/>
+    </div>
     <details ref={menu} className="wk-account"><summary aria-label="Account and company menu"><span className="wk-company-name">{displayName(workspace)}</span><span className="wk-avatar"><Icon name="user"/></span><Icon name="down" size={15}/></summary>
       <div className="wk-account-menu"><p>{email}</p><a href={detailHref('company', tab)} onClick={() => { if (menu.current) menu.current.open = false; }}>Edit company details</a><button type="button" onClick={logout} disabled={busy}>Sign out</button></div>
     </details></div></header>;
@@ -161,7 +165,9 @@ function DuePanel({items, today, end}: {items: Item[]; today: string; end: strin
 
 function ProfileCard({workspace, tab}: {workspace: WorkspaceInfo; tab: Tab}) {
   return <aside className="wk-profile-card" aria-label="Company profile"><div className="wk-folder-back"/><div className="wk-folder-middle"/><div className="wk-folder-face">
-    <div className="wk-profile-top"><img src="/assets/emblem.svg" width="39" height="37" alt=""/><a className="wk-profile-edit" href={detailHref('company', tab)} aria-label="Edit company details"><Icon name="edit"/></a></div>
+    <div className="wk-profile-top"><img src="/assets/emblem.svg" width="39" height="37" alt=""/>
+      {workspace.demo && <span className="wk-sample-label">Sample workspace</span>}
+      <a className="wk-profile-edit" href={detailHref('company', tab)} aria-label="Edit company details"><Icon name="edit"/></a></div>
     <h2>{displayName(workspace)}</h2><p>{workspace.country} · {workspace.stage === 'forming' ? 'In formation' : 'Operating'}</p></div></aside>;
 }
 
@@ -351,6 +357,5 @@ export function Workspace({state, refresh, notice}: WorkspaceProps) {
       break;
     default: content = <Weekly items={items} workspace={workspace}/>;
   }
-  return <div className="wk-shell"><Masthead workspace={workspace} email={user.email} {...saveProps}/><main className="wk-main" ref={main}><Tabs current={route.tab}/><div className="wk-file">{content}</div></main>
-    <footer className="wk-footer"><span>Companykeeping</span><span>A product by <a href="https://fgu.martinvolejnik.com" rel="external">For General Use</a></span></footer></div>;
+  return <div className="wk-shell"><Masthead workspace={workspace} email={user.email} {...saveProps}/><main className="wk-main" ref={main}><Tabs current={route.tab}/><div className="wk-file">{content}</div></main></div>;
 }

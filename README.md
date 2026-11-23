@@ -1,6 +1,6 @@
 # Companykeeping
 
-A company workspace by [For General Use](https://fgu.martinvolejnik.com). Start with a working name, choose a checklist for formation or recurring operations, and keep the next action and supporting records together. The optional studio example gives each founder a private copy of sample work for For General Use, including its planned Stillpoint launch.
+Companykeeping is a product of [For General Use](https://fgu.martinvolejnik.com). Founders can start with a working company name, choose a checklist, and keep their next actions and supporting records together. For General Use is also the first customer. Founders who want to try the app can opt into a private copy of sample records covering bookkeeping and the company's plans to launch Stillpoint.
 
 ## Start locally
 

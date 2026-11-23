@@ -8,7 +8,7 @@ import java.util.Map;
 final class Suggestions {
     private Suggestions() {}
     static final Map<String,Object> EXAMPLE = Map.of("name","For General Use","country","Czechia",
-            "description","An independent studio building digital products, including Stillpoint.","stage","operating");
+            "description","For General Use is the software company behind Companykeeping. We’re also preparing to launch Stillpoint.","stage","operating");
 
     static Map<String,Object> example() { return Map.of("workspace",EXAMPLE,"suggestions",forProfile(EXAMPLE,true)); }
 

@@ -5,9 +5,9 @@ import { ErrorNote, Icon, Progress, useSubmit } from './EntryUI';
 const blank: Profile = {name:'',country:'',description:'',stage:'forming'};
 type Refresh = () => Promise<void>;
 
-function FileCard({profile,children}: {profile: Profile; children?: React.ReactNode}) {
+function FileCard({profile,sample,children}: {profile: Profile; sample: boolean; children?: React.ReactNode}) {
   return <aside className="setup-aside">
-    <div className="setup-folder"><div className="folder-tab">Company file</div>
+    <div className="setup-folder"><div className="folder-tab">{sample ? 'Sample file' : 'Company file'}</div>
       <div className="folder-face"><img src="/assets/emblem.svg" alt="" width="51" height="51"/>
         <h2>{profile.name.trim() || 'Untitled company'}</h2>
         <dl><div><dt>Country or region</dt><dd>{profile.country.trim() || 'To be added'}</dd></div>
@@ -58,9 +58,9 @@ export function CompanyForm({initialExample,refresh}: {initialExample: Example |
         <button className="entry-primary" disabled={busy}>{busy ? 'Please wait…' : 'Build my checklist'}</button>
       </form>
     </section>
-    <FileCard profile={profile}><div className="demo-choice"><h3>{demo ? 'Using the studio example' : 'Explore with a studio example'}</h3>
-      <p>{demo ? 'Your file will include editable example work for For General Use and its product, Stillpoint.' : 'Try For General Use, the software studio building Stillpoint, with a sample checklist.'}</p>
-      <button type="button" className="entry-link" disabled={busy} onClick={chooseExample}>{demo ? 'Use my own business' : 'Use studio example'}</button>
+    <FileCard profile={profile} sample={demo}><div className="demo-choice"><h3>{demo ? 'Sample records selected' : 'Start with sample records'}</h3>
+      <p>{demo ? 'Your private copy includes a bookkeeping handover and a launch checklist for Stillpoint.' : 'For General Use makes Companykeeping. You can try a sample file based on how we run our company.'}</p>
+      <button type="button" className="entry-link" disabled={busy} onClick={chooseExample}>{demo ? 'Use my own business' : 'Use sample records'}</button>
     </div></FileCard>
   </main>;
 }
@@ -115,6 +115,6 @@ export function ChecklistForm({state,refresh}: {state: State; refresh: Refresh})
         <button className="entry-primary" disabled={busy}>{busy ? 'Opening workspace…' : 'Open my workspace'}</button>
       </form>
     </section>
-    <FileCard profile={workspace}><div className="file-count"><strong>{count}</strong><span>{count === 1 ? 'item' : 'items'} selected</span></div></FileCard>
+    <FileCard profile={workspace} sample={workspace.demo}><div className="file-count"><strong>{count}</strong><span>{count === 1 ? 'item' : 'items'} selected</span></div></FileCard>
   </main>;
 }
