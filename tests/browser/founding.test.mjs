@@ -99,6 +99,13 @@ test('a Czech founder opens the s.r.o. walkthrough and prepares a private notary
   await contribution.fill('50000');
 
   await page.goto(app.origin + '/#guide/forming-registration');
+  await page.getByText('Register a Czech s.r.o. and choose a bank', {exact:true}).click();
+  const banks = page.getByRole('region', {name:'Bank accounts for a Czech s.r.o.'});
+  await banks.getByText('Fio banka', {exact:true}).waitFor();
+  await banks.getByText('Komerční banka', {exact:true}).waitFor();
+  await banks.getByText('Revolut Business', {exact:true}).waitFor();
+  assert.equal(await banks.getByRole('link', {name:'Revolut pricing'}).getAttribute('href'),
+    'https://www.revolut.com/cs-CZ/business/business-account-plans/');
   const brief = page.getByRole('region', {name:'Founding brief', exact:true});
   await brief.getByText('Yes, you need a notary to form a Czech s.r.o.', {exact:true}).waitFor();
   assert.equal(await brief.getByRole('link', {name:'Official Czech model (.docx)'}).getAttribute('href'),

@@ -241,8 +241,8 @@ export function FounderGuide({workspace, guide, brief, selectedKey, refresh, not
   let registrationPack;
   if (czech && chapter?.key === 'forming-registration') {
     if (company) registrationPack = pack;
-    else if (individual) registrationPack = <details className="nb-compare"><summary>Czech s.r.o. documents</summary>{pack}</details>;
-    else registrationPack = <>{documents}<details className="nb-compare"><summary>How to register a Czech s.r.o.</summary><CzechFormationWalkthrough/></details></>;
+    else if (individual) registrationPack = <details className="nb-compare"><summary>Czech s.r.o. documents and banking</summary>{pack}</details>;
+    else registrationPack = <>{documents}<details className="nb-compare"><summary>Register a Czech s.r.o. and choose a bank</summary><CzechFormationWalkthrough/></details></>;
   }
   if (shortcut) {
     return <div className="fg-spread"><ChapterIndex workspace={workspace} guide={guide} steps={steps}/>

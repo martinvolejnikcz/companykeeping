@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import './czechFormation.css';
 
 const corporationsAct = 'https://e-sbirka.gov.cz/eli/cz/sb/2012/90';
-const bankExample = 'https://www.kb.cz/cs/podnikatele-a-firmy/ucty/specializovane-ucty/ucet-pro-slozeni-zakladniho-kapitalu';
+const kbCapitalAccount = 'https://www.kb.cz/cs/podnikatele-a-firmy/ucty/specializovane-ucty/ucet-pro-slozeni-zakladniho-kapitalu';
 const formatAmount = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
 function Source({ href, children }: { href: string; children: ReactNode }) {
@@ -40,8 +40,45 @@ function CapitalExample() {
       <p>Add up all agreed monetary contributions to decide whether a special account is required. Each founder must pay at least 30% of their own monetary contribution before filing, plus any agreed premium in full. The deed sets when the balance is due, within the statutory five-year limit from registration.</p>
       <p>For a payment into the special account, bank transfer is straightforward. A bank may also accept banknotes paid into that account at a branch. For example, Komerční banka accepts both and asks the administrator for ID and the notarial deed.</p>
     </details>
-    <div className="formation-sources"><Source href={corporationsAct}>Business Corporations Act · §§ 18, 23–27, 148 and 150</Source>
-      <Source href={bankExample}>Komerční banka · capital account and proof of deposit</Source></div>
+    <Source href={corporationsAct}>Business Corporations Act · §§ 18, 23–27, 148 and 150</Source>
+  </section>;
+}
+
+function CzechBankAccounts() {
+  const headingId = useId();
+  return <section className="formation-banks" aria-labelledby={headingId}>
+    <h4 id={headingId}>Bank accounts for a Czech s.r.o.</h4>
+    <p>For a CZK 50,000 share-capital commitment, the contribution administrator can open a special capital account at Fio or Komerční banka after signing the deed. A registered company can then apply to Revolut Business for everyday banking.</p>
+    <dl>
+      <div>
+        <dt>Fio banka</dt>
+        <dd>
+          <p>A practical main account for a small software company. Fio offers free CZK, EUR and USD accounts, free domestic CZK and standard SEPA payments, and a free API for pulling transactions into accounting software.</p>
+          <p>For the founding deposit, take the signed deed to a branch and ask for an <i lang="cs">účet pro složení základního kapitálu</i>. The confirmation costs CZK 120.</p>
+          <div className="formation-sources"><Source href="https://www.fio.cz/podnikatele">Fio business accounts</Source>
+            <Source href="https://www.fio.cz/o-nas/faq/bankovni-sluzby/3-ucty-a-produkty">Fio capital deposit and confirmation</Source></div>
+        </dd>
+      </div>
+      <div>
+        <dt>Komerční banka</dt>
+        <dd>
+          <p>A good choice if you want to keep the same account number from formation into operation. KB issues the capital deposit confirmation for free. Once the company appears in the Commercial Register, contact KB to convert the account to a business current account.</p>
+          <Source href={kbCapitalAccount}>KB capital account and conversion</Source>
+        </dd>
+      </div>
+      <div>
+        <dt>Revolut Business</dt>
+        <dd>
+          <p>A Czech s.r.o. can apply once it is registered and active. Basic costs CZK 250 a month. It can hold CZK, uses a Lithuanian IBAN for EUR payments, and provides SWIFT details for receiving CZK.</p>
+          <p>Use a domestic account for Czech customer invoices. Consider adding Revolut if you regularly exchange currencies or want virtual cards for software subscriptions.</p>
+          <div className="formation-sources"><Source href="https://help.revolut.com/en-CZ/business/help/setting-up-an-account/is-my-business-eligible/what-types-of-business-entities-are-supported/">Revolut eligibility</Source>
+            <Source href="https://help.revolut.com/en-CZ/help/setting-up-an-account/onboarding/incorporation-details/business/">Registration requirements</Source>
+            <Source href="https://help.revolut.com/en-CZ/business/help/receiving-payments/transfers-info/where-can-i-find-my-account-details/">Revolut account details</Source>
+            <Source href="https://www.revolut.com/cs-CZ/business/business-account-plans/">Revolut pricing</Source></div>
+        </dd>
+      </div>
+    </dl>
+    <p className="formation-hint">Fees checked on 23 November 2026.</p>
   </section>;
 }
 
@@ -69,6 +106,7 @@ export function CzechFormationWalkthrough() {
           The bank gives the account details to the named administrator. Keep its deposit confirmation.
           The administrator signs a declaration of what each founder actually paid and gives it to the notary.</p>
         <CapitalExample/>
+        <CzechBankAccounts/>
       </li>
       <li><h3>Get the register extract and activate everyday banking</h3>
         <p>Ask the notary for direct entry in the Commercial Register once the documents and contribution declaration are ready.

@@ -13,9 +13,14 @@
 .formation-money > h3 { font-size: 1.28rem; }
 .formation-money label { display: grid; justify-items: start; gap: 4px; margin: 15px 0 0; font-weight: 610; }
 .formation-money input { color: var(--wk-ink); background: var(--wk-paper); border: 1px solid #92958b; border-radius: 3px; padding: 8px 10px; width: min(100%, 14rem); }
-.formation-money .formation-hint { font-size: .87rem; color: var(--wk-muted); margin-top: 4px; }
+.formation-walkthrough .formation-hint { font-size: .87rem; color: var(--wk-muted); margin-top: 4px; }
 .formation-calculation { border-left: 3px solid var(--wk-blue); margin: 13px 0; padding-left: 12px; }
-.formation-money .formation-sources { margin-top: 10px; }
+.formation-banks { margin-top: 23px; }
+.formation-banks h4 { font-size: 1.12rem; margin: 0; }
+.formation-banks dl { margin: 13px 0 8px; }
+.formation-banks dl > div { padding: 10px 0; border-top: 1px solid var(--wk-line); }
+.formation-banks dt { font-weight: 650; }
+.formation-banks dd { margin: 0; }
 @media(max-width: 640px) {
   .formation-sequence { padding-inline-start: 1.35rem; }
   .formation-money { margin-left: -1.6rem; padding-inline: 15px; }
