@@ -209,3 +209,93 @@ test('demo suggestions require an explicit choice', async t => {
   assert.doesNotMatch(JSON.stringify(example), /Private studio decision/);
   assert.equal((await visitor.state()).user, null);
 });
+
+test('guide decisions persist by workspace and partial saves preserve a step’s other fields', async t => {
+  const app = await startApp(t);
+  const guest = app.client();
+  const path = '/api/guide/forming-model';
+  assert.deepEqual((await guest.state()).guide, {});
+  denied(await guest.request('PATCH', path, { answer: 'A guest answer' }), [401]);
+  await guest.ok('POST', '/api/signup', { email: 'before-setup@example.test', password });
+  assert.deepEqual((await guest.state()).guide, {});
+  denied(await guest.request('PATCH', path, { answer: 'No company yet' }), [404]);
+
+  const profile = { ...details, country: 'Czech Republic', stage: 'forming' };
+  const alice = await founder(app, 'guide-owner@example.test', profile);
+  const bob = await founder(app, 'guide-reader@example.test', profile);
+  await accept(alice, [{ title: 'Ask an adviser' }]);
+  const before = await alice.state();
+  assert.deepEqual(before.guide, {});
+  assert.equal((await alice.request('PATCH', path, { completed: true })).status, 400);
+  assert.equal((await alice.request('PATCH', path, { answer: ' \n\t ', completed: true })).status, 400);
+  assert.equal((await alice.request('PATCH', '/api/guide/unknown', { answer: 'Unlisted' })).status, 404);
+  assert.deepEqual((await alice.state()).guide, {});
+
+  const draft = { answer: 'Sell commissioned glasswork to architectural studios.', completed: false, route: 'company' };
+  assert.deepEqual(await alice.ok('PATCH', path, { answer: draft.answer, route: draft.route }), draft);
+  const other = { answer: 'Work on my own for the first year.', completed: false, route: 'individual' };
+  assert.deepEqual(await bob.ok('PATCH', path, other), other);
+  assert.equal((await bob.request('PATCH', path, { workspaceId: before.workspace.id, answer: 'New' })).status, 400);
+
+  const completed = { ...draft, completed: true };
+  assert.deepEqual(await alice.ok('PATCH', path, { completed: true }), completed);
+  for (const bad of [
+    { answer: '', route: 'individual' }, { answer: 'x'.repeat(3001) },
+    { answer: 27 }, { completed: 'yes' }, { route: 'cooperative' },
+  ]) {
+    assert.equal((await alice.request('PATCH', path, bad)).status, 400);
+  }
+  assert.equal((await alice.request('PATCH', '/api/guide/forming-registration', { route: 'company' })).status, 400);
+  await app.restart();
+  assert.deepEqual((await alice.state()).guide, { 'forming-model': completed });
+  assert.deepEqual((await bob.state()).guide, { 'forming-model': other });
+
+  const revised = { answer: 'B'.repeat(3000), completed: false };
+  assert.deepEqual(await alice.ok('PATCH', path, { ...revised, route: null }), revised);
+  await Promise.all([
+    alice.ok('PATCH', path, { answer: 'Make sample panels for the first customer.' }),
+    alice.ok('PATCH', path, { route: 'undecided' }),
+  ]);
+  const final = await alice.state();
+  assert.deepEqual(final.guide['forming-model'], {
+    answer: 'Make sample panels for the first customer.', completed: false, route: 'undecided',
+  });
+  assert.deepEqual(final.items, before.items);
+  assert.deepEqual((await bob.state()).guide, { 'forming-model': other });
+
+  const registration = { answer: 'Check the steps confirmed by the local office.', completed: true };
+  await alice.ok('PATCH', '/api/guide/forming-registration', registration);
+  await bob.ok('PATCH', '/api/guide/forming-registration', registration);
+  await alice.ok('PATCH', path, { route: 'individual', completed: true });
+  const afterRoute = (await alice.state()).guide;
+  assert.equal(afterRoute['forming-model'].completed, true);
+  assert.deepEqual(afterRoute['forming-registration'], { ...registration, completed: false });
+  await alice.ok('PATCH', '/api/guide/forming-registration', { completed: true });
+  await alice.ok('PATCH', path, { route: 'individual' });
+  await alice.ok('PATCH', '/api/workspace', { country: '  CZECHIA  ' });
+  assert.equal((await alice.state()).guide['forming-registration'].completed, true);
+  await alice.ok('PATCH', '/api/workspace', { country: 'Ireland' });
+  const afterCountry = (await alice.state()).guide;
+  assert.deepEqual(afterCountry['forming-model'], { ...afterRoute['forming-model'], completed: false });
+  assert.deepEqual(afterCountry['forming-registration'], { ...registration, completed: false });
+  assert.deepEqual((await bob.state()).guide['forming-registration'], registration);
+});
+
+test('an existing company keeps its login and records when Flyway adds its founder guide', async t => {
+  const app = await startApp(t, { initialMigrationTarget: '1' });
+  const owner = app.client();
+  await owner.ok('POST', '/api/signup', { email: 'first-release@example.test', password });
+  await owner.ok('POST', '/api/workspace', details);
+  await owner.ok('POST', '/api/checklist', { items: [] });
+  const saved = await owner.ok('POST', '/api/items', {
+    title: 'A pre-existing receipt', evidenceUrl: 'https://example.test/original-receipt',
+  });
+  await app.restart();
+  const state = await owner.state();
+  assert.equal(state.user.email, 'first-release@example.test');
+  assert.deepEqual(state.items, [saved.item]);
+  assert.deepEqual(state.guide, {});
+  const step = { answer: 'Review customer payments on Friday.', completed: false };
+  await owner.ok('PATCH', '/api/guide/operating-money', step);
+  assert.deepEqual((await owner.state()).guide, { 'operating-money': step });
+});

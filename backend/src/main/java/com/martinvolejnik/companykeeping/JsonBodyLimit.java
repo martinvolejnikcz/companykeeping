@@ -13,13 +13,13 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.RequestBodyAdviceAdapter;
 import org.springframework.web.server.ResponseStatusException;
 
-@ControllerAdvice
+@ControllerAdvice(basePackageClasses = CompanykeepingApplication.class)
 class JsonBodyLimit extends RequestBodyAdviceAdapter {
     static final int BYTES = 256 * 1024;
 
     @Override
     public boolean supports(MethodParameter parameter, Type targetType, Class<? extends HttpMessageConverter<?>> converter) {
-        return parameter.getContainingClass() == ApiController.class;
+        return true;
     }
 
     // Chunked requests have no Content-Length. Verify actual bytes before parsing JSON.

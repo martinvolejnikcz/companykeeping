@@ -1,11 +1,15 @@
+import { CountrySelect } from './CountrySelect';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { api } from './shared';
 import type { Item, State, WorkspaceInfo } from './shared';
 import { MakerCredit } from './MakerCredit';
+import { FounderGuide, WeeklyGuide } from './FounderGuide';
+import { getGuide, type GuideStep } from './guideContent';
 import './workspace.css';
 
 const symbols = {
+  book: <path d="M12 6.2C9.2 4.7 5.9 4.5 2.5 5v14c3.5-.5 6.5-.2 9.5 1.4 3-1.6 6-1.9 9.5-1.4V5c-3.4-.5-6.7-.3-9.5 1.2Zm0 .1V20"/>,
   plus: <path d="M12 5v14M5 12h14"/>,
   week: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-14 4h4m-4 3h6"/></>,
   records: <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>,
@@ -23,28 +27,30 @@ function Icon({name, size = 18}: { name: keyof typeof symbols; size?: number }) 
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{symbols[name]}</svg>;
 }
 
-type Tab = 'week' | 'records';
-type View = 'week' | 'records' | 'item' | 'new' | 'company';
+type Tab = 'week' | 'records' | 'guide';
+type View = Tab | 'item' | 'new' | 'company';
 type Filter = 'all' | 'open' | 'completed';
-type Route = {view: View; tab: Tab; filter: Filter; id?: string};
+type Route = {view: View; tab: Tab; filter: Filter; id?: string; step?: string};
 type WorkspaceProps = {state: State; refresh: () => Promise<void>; notice: (message: string) => void};
 type SaveProps = {refresh: WorkspaceProps['refresh']; notice: WorkspaceProps['notice']; tab: Tab};
 
 function readRoute(hash: string): Route {
   const [path, query] = hash.slice(1).split('?');
   const params = new URLSearchParams(query);
-  const tab = path === 'records' || params.get('from') === 'records' ? 'records' : 'week';
+  const from = params.get('from');
+  const tab = path === 'records' || from === 'records' ? 'records' : from === 'guide' ? 'guide' : 'week';
   const show = params.get('show');
   const filter = show === 'open' || show === 'completed' ? show : 'all';
+  if (path === 'guide' || path.startsWith('guide/')) return {view: 'guide', tab: 'guide', filter, step: path.slice(6)};
   if (path === 'records' || path === 'company') return {view: path, tab, filter};
-  if (path === 'items/new') return {view: 'new', tab, filter};
+  if (path === 'items/new') return {view: 'new', tab, filter, step: params.get('step') || undefined};
   const match = /^items\/([a-zA-Z0-9_-]+)$/.exec(path);
   if (match) return {view: 'item', tab, filter, id: match[1]};
   return {view: 'week', tab: 'week', filter};
 }
 
 function detailHref(path: string, tab: Tab) {
-  return '#' + path + (tab === 'records' ? '?from=records' : '');
+  return '#' + path + (tab !== 'week' ? '?from=' + tab : '');
 }
 
 function localDay(offset = 0) {
@@ -116,6 +122,7 @@ function Masthead({workspace, email, tab, refresh, notice}: SaveProps & {workspa
 function Tabs({current}: {current: Tab}) {
   return <nav className="wk-tabs" aria-label="Workspace">
     <a className="wk-tab" href="#week" aria-current={current === 'week' ? 'page' : undefined}><Icon name="week"/>This week</a>
+    <a className="wk-tab" href="#guide" aria-current={current === 'guide' ? 'page' : undefined}><Icon name="book"/>Company guide</a>
     <a className="wk-tab" href="#records" aria-current={current === 'records' ? 'page' : undefined}><Icon name="records"/>Company records</a>
   </nav>;
 }
@@ -125,8 +132,8 @@ function PageHead({title, meta, addTo}: {title: string; meta?: string; addTo?: T
     {addTo && <a className="wk-btn primary" href={detailHref('items/new', addTo)}><Icon name="plus"/>Add item</a>}</div>;
 }
 
-function DetailHead({tab, title, meta}: {tab: Tab; title: string; meta?: string}) {
-  return <div className="wk-detail-head"><a className="wk-back" href={'#' + tab}><Icon name="back" size={15}/>{tab === 'records' ? 'Company records' : 'This week'}</a><PageHead title={title} meta={meta}/></div>;
+function DetailHead({tab, title, meta, backTo}: {tab: Tab; title: string; meta?: string; backTo?: string}) {
+  return <div className="wk-detail-head"><a className="wk-back" href={'#' + (backTo || tab)}><Icon name="back" size={15}/>{{records: 'Company records', week: 'This week', guide: 'Company guide'}[tab]}</a><PageHead title={title} meta={meta}/></div>;
 }
 
 function ItemRow({item, tab}: {item: Item; tab: Tab}) {
@@ -171,11 +178,12 @@ function ProfileCard({workspace, tab}: {workspace: WorkspaceInfo; tab: Tab}) {
     <h2>{displayName(workspace)}</h2><p>{workspace.country} · {workspace.stage === 'forming' ? 'In formation' : 'Operating'}</p></div></aside>;
 }
 
-function Weekly({items, workspace}: {items: Item[]; workspace: WorkspaceInfo}) {
+function Weekly({items, workspace, guide}: {items: Item[]; workspace: WorkspaceInfo; guide: State['guide']}) {
   const open = items.filter(item => item.status !== 'done');
   const today = localDay();
   const end = localDay(6);
   return <><PageHead title="This week" meta={dateRange(today, end)} addTo="week"/>
+    <WeeklyGuide workspace={workspace} guide={guide}/>
     <div className="wk-sheet wk-week-grid"><div className="wk-ledger">
       <Group kind="ready" items={open.filter(item => item.status === 'ready')}/>
       <Group kind="waiting" items={open.filter(item => item.status === 'waiting')}/></div>
@@ -262,10 +270,11 @@ function useSave() {
   return {busy, error, save};
 }
 
-function ItemEditor({item, items, tab, refresh, notice}: SaveProps & {item?: Item; items: Item[]}) {
+function ItemEditor({item, items, tab, refresh, notice, guideStep}: SaveProps & {item?: Item; items: Item[]; guideStep?: GuideStep}) {
   const [status, setStatus] = useState(item?.status || 'ready');
   const [recurrence, setRecurrence] = useState(item?.recurrence || 'none');
   const {busy, error, save} = useSave();
+  const returnTo = guideStep ? 'guide/' + guideStep.key : tab;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
@@ -276,23 +285,23 @@ function ItemEditor({item, items, tab, refresh, notice}: SaveProps & {item?: Ite
       const path = !item ? '/api/items' : '/api/items/' + item.id + (complete ? '/complete' : '');
       await api(path, !item || complete ? 'POST' : 'PATCH', data);
       await refresh();
-      if (!complete) location.hash = tab;
+      if (!complete) location.hash = returnTo;
       notice(complete ? 'Item completed.' : item ? 'Changes saved.' : 'Item added.');
     });
   }
-  return <><DetailHead tab={tab} title={item?.title || 'Add an item'} meta={item?.recurrence === 'monthly' ? monthLabel(item.period) || 'Monthly' : undefined}/>
+  return <><DetailHead tab={tab} backTo={returnTo} title={item?.title || 'Add an item'} meta={item?.recurrence === 'monthly' ? monthLabel(item.period) || 'Monthly' : undefined}/>
     <form className="wk-sheet wk-edit-grid" onSubmit={submit}><div className="wk-form-main">
       <section className="wk-fields"><h2>Item details</h2>
-      <Field label="Item title" name="title" value={item?.title} required limit={200}/>
-      <Field label="Why it matters" name="why" value={item?.why} area limit={5000}/>
-      <Field label="Next action" name="nextAction" value={item?.nextAction} area limit={5000}/>
+      <Field label="Item title" name="title" value={item?.title ?? guideStep?.followUp.title} required limit={200}/>
+      <Field label="Why it matters" name="why" value={item?.why ?? guideStep?.summary} area limit={5000}/>
+      <Field label="Next action" name="nextAction" value={item?.nextAction ?? guideStep?.followUp.nextAction} area limit={5000}/>
       <SelectField name="status" label="Status" value={status} change={v => setStatus(v as 'ready' | 'waiting')} choices={[[ 'ready', 'Ready to act' ],[ 'waiting', 'Waiting' ]]}/>
       <div hidden={status !== 'waiting'}><Field label="Who or what are you waiting for?" name="waitingFor" value={item?.waitingFor} required={status === 'waiting'} limit={500}/></div></section>
       <section className="wk-fields"><h2>Dates &amp; recurrence</h2><div className="wk-pair">
       <Field label="Due date" name="dueDate" value={item?.dueDate} type="date"/><Field label="Follow-up date" name="followUpDate" value={item?.followUpDate} type="date"/></div>
       <SelectField name="recurrence" label="Repeat" value={recurrence} change={v => setRecurrence(v as 'none' | 'monthly')} choices={[[ 'none', 'Does not repeat' ],[ 'monthly', 'Monthly' ]]}/>
       {recurrence === 'monthly' && <Field label="Record month" name="period" value={item?.period || localDay().slice(0,7)} type="month" required hint="Choose the month this work belongs to."/>}
-      <Field label="Date source link" name="sourceUrl" value={item?.sourceUrl} type="url" limit={2048} hint="Link to the instructions from your accountant or official source."/><DocumentLink url={item?.sourceUrl}>Open date source</DocumentLink></section>
+      <Field label="Date source link" name="sourceUrl" value={item?.sourceUrl ?? guideStep?.sources[0]?.url} type="url" limit={2048} hint="Link to the instructions from your accountant or official source."/><DocumentLink url={item?.sourceUrl}>Open date source</DocumentLink></section>
       <section className="wk-fields"><h2>Confirmation</h2><Field label="Confirmation or document link" name="evidenceUrl" value={item?.evidenceUrl} type="url" limit={2048}/><DocumentLink url={item?.evidenceUrl}>Open saved document</DocumentLink></section>
       {error && <p className="wk-error" role="alert">{error}</p>}
       <div className="wk-save-bar"><button className="wk-btn primary" type="submit" value="save" disabled={busy}>{item ? 'Save changes' : 'Add item'}</button>
@@ -315,7 +324,7 @@ function CompanyEditor({workspace, tab, refresh, notice}: SaveProps & {workspace
   }
   return <><DetailHead title="Company details" tab={tab}/><form className="wk-sheet wk-profile-form" onSubmit={submit}><section className="wk-fields">
     <Field label="Company name" name="name" value={workspace.name} limit={160} hint="A working name is fine. You can also leave this blank."/>
-    <Field label="Country or region" name="country" value={workspace.country} required limit={120}/>
+    <CountrySelect className="wk-field" country={workspace.country}/>
     <Field label="What does the business do?" name="description" value={workspace.description} required area limit={1500}/>
     <SelectField name="stage" label="Company stage" value={workspace.stage} choices={[[ 'forming', 'Being formed' ],[ 'operating', 'Already operating' ]]}/>
     </section>{error && <p className="wk-error" role="alert">{error}</p>}<div className="wk-save-bar"><button className="wk-btn primary" type="submit" disabled={busy}>Save changes</button></div></form></>;
@@ -348,14 +357,19 @@ export function Workspace({state, refresh, notice}: WorkspaceProps) {
   let content;
   switch (route.view) {
     case 'records': content = <Records items={items} workspace={workspace} filter={route.filter}/>; break;
-    case 'new': content = <ItemEditor key="new" items={items} {...saveProps}/>; break;
+    case 'guide': content = <FounderGuide workspace={workspace} guide={state.guide} selectedKey={route.step} refresh={refresh} notice={notice}/>; break;
+    case 'new': {
+      const step = route.tab === 'guide' && route.step ? getGuide(workspace, state.guide).find(s => s.key === route.step) : undefined;
+      content = <ItemEditor key={step?.key || 'new'} guideStep={step} items={items} {...saveProps}/>;
+      break;
+    }
     case 'company': content = <CompanyEditor workspace={workspace} {...saveProps}/>; break;
     case 'item':
       if (!item) content = <DetailHead tab={route.tab} title="Item unavailable" meta="Choose an item from your company records."/>;
       else if (item.status === 'done') content = <CompletedView item={item} items={items} tab={route.tab}/>;
       else content = <ItemEditor key={item.id} item={item} items={items} {...saveProps}/>;
       break;
-    default: content = <Weekly items={items} workspace={workspace}/>;
+    default: content = <Weekly items={items} workspace={workspace} guide={state.guide}/>;
   }
   return <div className="wk-shell"><Masthead workspace={workspace} email={user.email} {...saveProps}/><main className="wk-main" ref={main}><Tabs current={route.tab}/><div className="wk-file">{content}</div></main></div>;
 }

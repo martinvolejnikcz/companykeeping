@@ -22,7 +22,7 @@ function AccountForm({login, wantsExample, refresh}: {login: boolean; wantsExamp
   return <div className="entry-account">
     {!login && <Progress index={0} />}
     <h1>{login ? <>Open your <br/>workspace.</> : <>Open your <br/>company file.</>}</h1>
-    <p className="entry-intro">{login ? 'Sign in to see your next actions and company records.' : wantsExample ? 'Create an account to try our sample records in a private workspace of your own.' : 'A private workspace for the next actions, follow-ups, and records that keep your company running.'}</p>
+    <p className="entry-intro">{login ? 'Pick up your company guide where you left off, or open this week’s work.' : wantsExample ? 'Create an account to try our sample records in a private workspace of your own.' : 'Work through how to set up your business, prepare for a first sale, and keep the money and paperwork in order as you grow.'}</p>
     <form onSubmit={submit} className="entry-form">
       <label>Email address<input name="email" type="email" autoComplete="email" maxLength={254} required placeholder="you@company.com"/></label>
       <label htmlFor="account-password">Password</label>

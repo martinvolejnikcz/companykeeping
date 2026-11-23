@@ -11,7 +11,7 @@ function App() {
   const [notification, setNotification] = useState<{text: string} | null>(null);
   const refresh = useCallback(async () => {
     const next = await api<State>('/api/state');
-    setState(next);
+    setState({...next, guide: next.guide ?? {}});
     setError('');
   }, []);
   const load = useCallback(() => {

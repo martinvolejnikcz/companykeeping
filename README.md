@@ -1,6 +1,6 @@
 # Companykeeping
 
-Companykeeping is a product of [For General Use](https://fgu.martinvolejnik.com). Founders can start with a working company name, choose a checklist, and keep their next actions and supporting records together. For General Use is also the first customer. Founders who want to try the app can opt into a private copy of sample records covering bookkeeping and the company's plans to launch Stillpoint.
+Companykeeping is a product of [For General Use](https://fgu.martinvolejnik.com). It guides founders through decisions about starting and running a company, then keeps their answers, next actions and supporting records together. For General Use is also the first customer. Founders who want to try the app can opt into a private copy of sample records covering bookkeeping and the company's plans to launch Stillpoint.
 
 ## Start locally
 
@@ -21,8 +21,12 @@ docker compose down
 
 ## The founder journey
 
+The **Company guide** resumes the owner’s first unfinished chapter from **This week**. A founder in formation explores who will contract with customers, chooses a route to investigate, and prepares for a first sale. In Czechia, choosing an s.r.o. opens a notary preparation chapter. Choosing self-employment leads to activity and trade authorisation instead. Both link to the Czech public administration portal. Already-operating businesses start with a payment trail, a bookkeeping handover, and an owner review.
+
+The guide saves draft and finished answers per workspace. A chapter can open an editable follow-up with its suggested action and source in the ordinary item editor. Country-specific references are curated in `frontend/src/guideContent.ts`. Where there is no local reference, the guide offers questions for the founder’s own authority or adviser. The country selector includes the ISO 3166-1 countries and territories and retains existing workspace region values.
+
 1. Create an account and enter the business description, country or region, and stage. A working name or blank name is fine. Update the profile later from the company menu.
-2. Review the starting checklist. Edit a title or next action, uncheck a suggestion, or add an item. Dates for ordinary workspaces come from the owner. Each item has a field for the accountant’s or official source link.
+2. Review the starting checklist or skip straight to the guide. Edit a title or next action, uncheck a suggestion, or add an item. Dates for ordinary workspaces come from the owner. Each item has a field for the accountant’s or official source link.
 3. **This week** shows ready work, waiting items with their dependencies, and due dates and follow-ups for today and the next six days, including overdue items. Ready items stay visible without dates.
 4. Open an item to change its next action, state, dates, source, or confirmation link. **Company records** includes all open and completed items.
 5. For a monthly item, choose the record month, save the confirmation, and mark it complete. The completed record keeps its original evidence. The next occurrence starts with an empty evidence field and retains the source. A due date on the 31st moves to the last day of a shorter month and returns to the 31st when available.
@@ -41,7 +45,7 @@ npm test
 npm run test:browser
 ```
 
-The Vite build type-checks the React client. Maven runs the Java request-boundary tests and packages the client, backend, and migrations into `backend/target/companykeeping.jar`. The HTTP checks verify both business stages, checklist editing, persistence after process restart, sign-in/out, isolation between two owners, and concurrent completion of a monthly item. The Chromium check goes from signup through mobile task editing, reload, and a leap-year monthly rollover. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an installed Chromium-based browser. On a fresh Linux CI runner use `npx playwright install --with-deps chromium`.
+The Vite build type-checks the React client. Maven runs the Java request-boundary tests and packages the client, backend, and migrations into `backend/target/companykeeping.jar`. The HTTP checks verify both business stages, checklist editing, guide migration and persistence after process restart, sign-in/out, isolation between two owners, and concurrent completion of a monthly item. The Chromium checks cover the country picker, branching guide, saved decisions, follow-ups, mobile task editing, and a leap-year monthly rollover. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an installed Chromium-based browser. On a fresh Linux CI runner use `npx playwright install --with-deps chromium`.
 
 ## Run from source
 

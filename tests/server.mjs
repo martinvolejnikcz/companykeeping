@@ -7,7 +7,7 @@ import { startPostgres } from './postgres.mjs';
 
 const project = new URL('../', import.meta.url);
 
-export async function startApp(t) {
+export async function startApp(t, { initialMigrationTarget } = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), 'companykeeping-test-'));
   let child;
   let exited;
@@ -21,7 +21,7 @@ export async function startApp(t) {
     child = undefined;
   }
 
-  async function start() {
+  async function start(migrationTarget) {
     const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, 'bin/java') : 'java';
     child = spawn(java, ['-jar', 'backend/target/companykeeping.jar'], {
       cwd: project,
@@ -30,6 +30,7 @@ export async function startApp(t) {
         HOST: '127.0.0.1',
         PORT: '0',
         ...database.env,
+        ...(migrationTarget ? { SPRING_FLYWAY_TARGET: migrationTarget } : {}),
         PUBLIC_ORIGIN: '',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -97,7 +98,7 @@ export async function startApp(t) {
     await rm(directory, { recursive: true, force: true });
   });
   database = await startPostgres(directory);
-  await start();
+  await start(initialMigrationTarget);
   return {
     get origin() { return origin; },
     client,

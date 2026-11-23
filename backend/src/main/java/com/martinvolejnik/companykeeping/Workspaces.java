@@ -15,13 +15,18 @@ import org.springframework.web.server.ResponseStatusException;
 public class Workspaces {
     private final JdbcClient jdbc;
     private final Items items;
-    Workspaces(JdbcClient jdbc, Items items) {
+    private final FounderGuide guide;
+    private final CountryNames countries;
+    Workspaces(JdbcClient jdbc, Items items, FounderGuide guide, CountryNames countries) {
         this.jdbc = jdbc;
         this.items = items;
+        this.guide = guide;
+        this.countries = countries;
     }
 
     record Workspace(UUID id, Map<String,Object> profile, boolean demo, boolean setupComplete) {}
-    record State(Map<String,Object> user, Map<String,Object> workspace, List<Map<String,Object>> items, List<Map<String,Object>> suggestions) {}
+    record State(Map<String,Object> user, Map<String,Object> workspace, List<Map<String,Object>> items,
+                 List<Map<String,Object>> suggestions, Map<String,FounderGuide.Step> guide) {}
 
     private Optional<Workspace> find(UUID owner, boolean lock) {
         return jdbc.sql("SELECT * FROM workspaces WHERE owner_id=?" + (lock ? " FOR UPDATE" : "")).param(owner)
@@ -38,15 +43,16 @@ public class Workspaces {
 
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public State state(Accounts.Account account) {
-        if (account == null) return new State(null,null,List.of(),List.of());
+        if (account == null) return new State(null,null,List.of(),List.of(),Map.of());
         Map<String,Object> user = Map.of("email",account.email());
         Workspace workspace = find(account.id(),false).orElse(null);
-        if (workspace == null) return new State(user,null,List.of(),List.of());
+        if (workspace == null) return new State(user,null,List.of(),List.of(),Map.of());
         var details = new HashMap<>(workspace.profile());
         details.put("id",workspace.id());
         details.put("demo",workspace.demo());
         details.put("setupComplete",workspace.setupComplete());
-        return new State(user,details,items.list(workspace.id()), workspace.setupComplete() ? List.of() : Suggestions.forProfile(details,workspace.demo()));
+        return new State(user,details,items.list(workspace.id()),
+                workspace.setupComplete() ? List.of() : Suggestions.forProfile(details,workspace.demo()), guide.list(workspace.id()));
     }
 
     private static Map<String,Object> profile(Map<String,Object> values) {
@@ -75,11 +81,17 @@ public class Workspaces {
 
     @Transactional
     public void edit(UUID owner, Map<String,Object> input) {
-        var combined = new HashMap<>(require(owner,true).profile());
+        var existing = require(owner,true);
+        var combined = new HashMap<>(existing.profile());
         combined.putAll(input);
         var params = new HashMap<>(profile(combined));
         params.put("owner",owner);
         jdbc.sql("UPDATE workspaces SET name=:name,country=:country,description=:description,stage=:stage WHERE owner_id=:owner").params(params).update();
+        String previousCountry = (String) existing.profile().get("country");
+        String updatedCountry = (String) params.get("country");
+        if (!countries.sameCountry(previousCountry, updatedCountry)) {
+            guide.reopen(existing.id(), List.of("forming-model", "forming-registration"));
+        }
     }
 
     @Transactional

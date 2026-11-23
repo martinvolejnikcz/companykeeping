@@ -38,10 +38,18 @@ test('a founder chooses a checklist, tracks a follow-up and files a monthly conf
   await page.getByRole('button', {name:'Create account'}).click();
   await page.getByRole('heading', {name:'Your company'}).waitFor();
   assert.equal(await page.getByLabel(/Company name/).inputValue(), '');
-  await page.getByLabel('Country or region').fill('Ireland');
+  const country = page.getByRole('combobox', {name:'Country or region', exact:true});
+  assert.equal(await country.inputValue(), '');
+  assert.equal(await country.getByRole('option').count(), 250);
+  await page.getByRole('button', {name:'Use sample records'}).click();
+  await page.getByRole('heading', {name:'Sample records selected'}).waitFor();
+  assert.equal(await country.inputValue(), 'Czechia');
+  await page.getByRole('button', {name:'Use my own business'}).click();
+  assert.equal(await country.inputValue(), '');
+  await country.selectOption({label:'Ireland'});
   await page.getByLabel('What does your business do?').fill('We restore bindings on old books.');
   await page.getByLabel('Already operating').check();
-  await page.getByRole('button', {name:'Build my checklist'}).click();
+  await page.getByRole('button', {name:'Prepare my workspace'}).click();
 
   await page.getByRole('heading', {name:'Your starting checklist'}).waitFor();
   await page.getByRole('checkbox', {name:'Organize the company records'}).uncheck();
@@ -112,5 +120,19 @@ test('a founder chooses a checklist, tracks a follow-up and files a monthly conf
   assert.equal(await evidence.getAttribute('href'), confirmationUrl);
   assert.equal(await page.getByRole('link', {name:'Open date source'}).getAttribute('href'), sourceUrl);
   await assertFitsPhone(page);
+  // Profiles created before the selector can contain a historic name or a custom region.
+  for (const [savedCountry, expectedCountry] of [['South Moravia', 'South Moravia'], ['Czech Republic', 'Czechia']]) {
+    const edited = await page.request.patch(app.origin + '/api/workspace', {
+      data: {country: savedCountry}, headers: {Origin: app.origin},
+    });
+    assert.ok(edited.ok());
+    await page.goto(app.origin + '/#company');
+    await page.reload();
+    assert.equal(await country.inputValue(), expectedCountry);
+    await page.getByRole('button', {name:'Save changes'}).click();
+    await page.getByRole('heading', {name:'This week',exact:true}).waitFor();
+    const saved = await (await page.request.get(app.origin + '/api/state')).json();
+    assert.equal(saved.workspace.country, expectedCountry);
+  }
   assert.deepEqual(pageErrors, []);
 });

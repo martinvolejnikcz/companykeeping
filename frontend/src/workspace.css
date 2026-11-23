@@ -183,3 +183,10 @@
   .wk-page-head { align-items: start; flex-direction: column; }
   .wk-pair { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 500px) {
+  .wk-tabs { display: grid; grid-template-columns: .8fr 1fr 1.1fr; }
+  .wk-tab { justify-content: center; gap: 0; padding: 9px 13px 8px 7px; font-size: clamp(.8rem,3.5vw,.95rem); line-height: 1.15; }
+  .wk-tab svg { display: none; }
+  .wk-tab:last-child { padding-right: 15px; }
+}

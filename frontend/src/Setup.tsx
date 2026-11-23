@@ -1,3 +1,4 @@
+import { CountrySelect } from './CountrySelect';
 import { useState, type FormEvent } from 'react';
 import { api, type Profile, type Example, type ItemInput, type State } from './shared';
 import { ErrorNote, Icon, Progress, useSubmit } from './EntryUI';
@@ -42,11 +43,11 @@ export function CompanyForm({initialExample,refresh}: {initialExample: Example |
   }
   return <main className="entry-wrap setup-grid">
     <section className="setup-working"><Progress index={1}/>
-      <h1>Your company</h1><p className="entry-intro">A few details help us suggest the right starting checklist.</p>
+      <h1>Your company</h1><p className="entry-intro">Tell us where you work and whether you’ve started trading. Your guide will start with setting up the business or running it day to day.</p>
       <form className="entry-form profile-form" onSubmit={submit}>
         <label>Company name <small>Optional</small><input name="name" value={profile.name} onChange={e=>update('name',e.target.value)} maxLength={160} aria-describedby="name-help" placeholder="Your working or registered name"/></label>
         <p className="field-help" id="name-help">You can add a name after registration.</p>
-        <label>Country or region<input name="country" value={profile.country} onChange={e=>update('country',e.target.value)} required maxLength={120} autoComplete="country-name" placeholder="Where you do business"/></label>
+        <CountrySelect country={profile.country} onChange={country=>update('country',country)}/>
         <label>What does your business do?<textarea name="description" value={profile.description} onChange={e=>update('description',e.target.value)} required maxLength={1500} rows={2} placeholder="Describe the work and who it’s for."/></label>
         <fieldset><legend>Where are you now?</legend><div className="stage-options">
           {(['forming','operating'] as const).map(stage => <label key={stage}>
@@ -55,7 +56,7 @@ export function CompanyForm({initialExample,refresh}: {initialExample: Example |
             {stage === 'forming' ? 'Forming a company' : 'Already operating'}</label>)}
         </div></fieldset>
         <ErrorNote error={error}/>
-        <button className="entry-primary" disabled={busy}>{busy ? 'Please wait…' : 'Build my checklist'}</button>
+        <button className="entry-primary" disabled={busy}>{busy ? 'Please wait…' : 'Prepare my workspace'}</button>
       </form>
     </section>
     <FileCard profile={profile} sample={demo}><div className="demo-choice"><h3>{demo ? 'Sample records selected' : 'Start with sample records'}</h3>
@@ -79,6 +80,13 @@ export function ChecklistForm({state,refresh}: {state: State; refresh: Refresh})
     setRows(rows => [...rows,{key,selected:true,editing:true,item:{title:'',why:'',nextAction:'',recurrence:'none'}}]);
     requestAnimationFrame(() => document.getElementById('title-' + key)?.focus());
   }
+  function openWorkspace(items: ItemInput[], tab: 'week' | 'guide') {
+    void run(async () => {
+      await api('/api/checklist','POST',{items});
+      history.replaceState(null,'',location.pathname+'#'+tab);
+      await refresh(); window.scrollTo(0,0);
+    });
+  }
   function submit(event: FormEvent) {
     event.preventDefault();
     const empty = rows.find(row=>row.selected && !row.item.title.trim());
@@ -87,17 +95,14 @@ export function ChecklistForm({state,refresh}: {state: State; refresh: Refresh})
       requestAnimationFrame(()=>document.getElementById('title-' + empty.key)?.focus());
       return;
     }
-    void run(async () => {
-      await api('/api/checklist','POST',{items:rows.filter(row=>row.selected).map(row=>row.item)});
-      history.replaceState(null,'',location.pathname+'#week');
-      await refresh(); window.scrollTo(0,0);
-    });
+    openWorkspace(rows.filter(row=>row.selected).map(row=>row.item),'week');
   }
   const workspace = state.workspace!;
   return <main className="entry-wrap setup-grid checklist-grid">
     <section className="setup-working"><Progress index={2}/>
       <h1>Your starting checklist</h1>
-      <p className="entry-intro">{workspace.stage === 'forming' ? 'Start with the work of setting up your company.' : 'Go straight to the work of running your business.'} Keep what fits, edit the details, or add your own item.</p>
+      <p className="entry-intro">{workspace.stage === 'forming' ? 'Your guide starts with who will sign your first contract.' : 'Your guide starts with tracing a customer payment.'} Choose any work you want to track alongside it. You can edit or skip every item.</p>
+      <button type="button" className="entry-link skip-checklist" disabled={busy} onClick={()=>openWorkspace([],'guide')}>Skip the checklist and open my guide</button>
       <form className="checklist-form" onSubmit={submit}>
         <div className="checklist-rows">{rows.map(row => <div className={'suggestion' + (row.selected ? '' : ' skipped')} key={row.key}>
           <div className="suggestion-head"><label><input type="checkbox" checked={row.selected} onChange={e=>change(row.key,{selected:e.target.checked})}/>

@@ -28,11 +28,19 @@ export interface Item extends Required<ItemInput> {
   completedAt: string | null;
 }
 
+export type GuideRoute = 'company' | 'individual' | 'undecided';
+export interface GuideAnswer {
+  answer: string;
+  completed: boolean;
+  route?: GuideRoute | null;
+}
+
 export interface State {
   user: {email: string} | null;
   workspace: WorkspaceInfo | null;
   items: Item[];
   suggestions: ItemInput[];
+  guide: Record<string, GuideAnswer>;
 }
 
 export type Profile = Pick<WorkspaceInfo, 'name' | 'country' | 'description' | 'stage'>;
